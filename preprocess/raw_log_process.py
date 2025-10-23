@@ -16,7 +16,9 @@ warnings.filterwarnings('ignore')
 
 # Drain相关导入
 import sys
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'extractor'))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+extractor_path = os.path.join(project_root, 'extractor')
+sys.path.append(extractor_path)
 from drain.drain_template_extractor import init_drain, extract_templates
 
 

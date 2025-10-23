@@ -13,8 +13,10 @@ import warnings
 from multiprocessing import Pool, cpu_count
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.decorators import time_decorator
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+extractor_path = os.path.join(project_root, 'extractor')
+sys.path.append(extractor_path)
+from utils.time_util import coast_time as time_decorator
 warnings.filterwarnings('ignore')
 
 

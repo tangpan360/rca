@@ -1140,14 +1140,14 @@ if __name__ == "__main__":
     label_file = os.path.join(project_dir, 'extractor', 'MicroSS', 'label.csv')
     metric_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'processed_data', 'metric')
     
-    # # 复制选定metric文件到processed_data/metric目录下
-    # copy_valid_metric_files()
+    # 复制选定metric文件到processed_data/metric目录下
+    copy_valid_metric_files()
 
-    # # 合并不同时间段的同一指标文件
-    # merge_date_range_files()
+    # 合并不同时间段的同一指标文件
+    merge_date_range_files()
 
-    # # 重采样30秒间隔的指标数据
-    # resample_metrics_30s_interval()
+    # 重采样30秒间隔的指标数据
+    resample_metrics_30s_interval()
 
     # 合并相同服务实例的不同指标文件
     merge_metrics_by_service_instance()
