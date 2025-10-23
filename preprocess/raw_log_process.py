@@ -458,7 +458,7 @@ def load_drain_model(model_path):
 
 def add_template_columns_single_file(args):
     """
-    为单个csv文件添加template列
+    为单个csv文件添加template列和template_id列
 
     Args:
         args (tuple): 包含(file_path, model_path)的元组
@@ -472,20 +472,25 @@ def add_template_columns_single_file(args):
     try:
         df = pd.read_csv(file_path)
 
-        if 'template' in df.columns:
-            print(f"文件 {os.path.basename(file_path)} 已经包含template列，跳过处理")
+        if 'template' in df.columns and 'template_id' in df.columns:
+            print(f"文件 {os.path.basename(file_path)} 已经包含template和template_id列，跳过处理")
             return f"跳过 {os.path.basename(file_path)}"
 
         templates = []
+        template_ids = []
         for message in tqdm(df['message'], desc=f"处理 {os.path.basename(file_path)}"):
             match = miner.match(message)
             if match:
                 template = match.get_template()
+                template_id = match.cluster_id
             else:
                 template = "Unseen"
+                template_id = -1  # 对于未见过的日志，使用-1作为ID
             templates.append(template)
+            template_ids.append(template_id)
         
         df['template'] = templates
+        df['template_id'] = template_ids
 
         df.to_csv(file_path, index=False)
 
@@ -497,7 +502,7 @@ def add_template_columns_single_file(args):
 
 def add_template_columns_multiprocess(logs_dir, model_path, numprocess=None):
     """
-    为logs目录下的所有csv文件添加template列
+    为logs目录下的所有csv文件添加template列和template_id列
 
     Args:
         logs_dir (str): 日志文件目录路径
