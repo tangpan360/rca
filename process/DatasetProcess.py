@@ -27,8 +27,8 @@ class DatasetProcess:
         
         # 加载真实的拓扑数据（nodes和edges）
         import json
-        nodes_path = f"./data/{self.config.dataset}/raw/nodes.json"
-        edges_path = f"./data/{self.config.dataset}/raw/edges.json"
+        nodes_path = "./preprocess/processed_data/nodes.json"
+        edges_path = "./preprocess/processed_data/edges.json"
         
         with open(nodes_path, 'r') as f:
             nodes_dict = json.load(f)
