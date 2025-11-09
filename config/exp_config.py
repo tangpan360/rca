@@ -15,9 +15,9 @@ class Config:
 
         # TVDiag modules
         self.aug_percent = 0.2
-        self.aug_times = 10
-        self.TO = True
-        self.CM = True
+        self.aug_times = 5
+        self.TO = False
+        self.CM = False
         self.dynamic_weight = True
 
         # model config
