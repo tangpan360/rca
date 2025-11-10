@@ -103,72 +103,117 @@ def load_anomaly_periods(label_file_path):
 def compute_normalization_stats(label_df):
     """
     从训练集计算归一化统计信息
+    
+    统计方式:
+        - Metric: 排除NaN，包含0（0是真实值）
+        - Log: 排除0（0是真实的'未出现'）
+        - Trace: 排除NaN和0（都是缺失）
     """
     train_df = label_df[label_df['data_type'] == 'train']
     print(f"\n从 {len(train_df)} 个训练样本计算归一化统计...")
     
-    all_metrics, all_logs, all_traces = [], [], [[] for _ in range(10)]
+    # 按指标分别收集
+    all_metrics = [[] for _ in range(12)]  # 12个metric指标
+    all_logs = [[] for _ in range(40)]     # 40个log模板
+    all_traces = [[] for _ in range(10)]   # 10个instance
     
     for _, row in tqdm(train_df.iterrows(), total=len(train_df), desc="收集训练数据"):
         st_time = pd.to_datetime(row['st_time']).timestamp() * 1000
         ed_time = st_time + 600 * 1000
         
-        # 收集原始数据
-        metric = _process_metric_for_sample(st_time, ed_time)
-        log = _process_log_for_sample(st_time, ed_time)
-        trace = _process_trace_for_sample(st_time, ed_time)
+        # 收集原始数据（不归一化）
+        metric, _ = _process_metric_for_sample(st_time, ed_time, normalize=False)
+        log, _ = _process_log_for_sample(st_time, ed_time, normalize=False)
+        trace, _ = _process_trace_for_sample(st_time, ed_time, normalize=False)
         
-        all_metrics.append(metric.reshape(-1, 12))
-        all_logs.append(log.reshape(-1, 40))
+        # Metric: 按指标收集非NaN值（包含0）
+        for i in range(12):
+            vals = metric[:, :, i].flatten()
+            valid_vals = vals[~np.isnan(vals)]  # 排除NaN，保留0
+            all_metrics[i].extend(valid_vals)
         
+        # Log: 按模板收集非0值
+        for i in range(40):
+            vals = log[:, i].flatten()
+            non_zero_vals = vals[vals != 0]  # 排除0
+            all_logs[i].extend(non_zero_vals)
+        
+        # Trace: 按instance收集非NaN且非0的值
         for i in range(10):
             vals = trace[i, :, 0]
-            all_traces[i].extend(vals[vals != 0])
+            valid_vals = vals[~np.isnan(vals) & (vals != 0)]  # 排除NaN和0
+            all_traces[i].extend(valid_vals)
     
-    # 计算统计信息
-    all_metrics = np.vstack(all_metrics)
-    all_logs = np.vstack(all_logs)
+    # 计算每个指标的均值和标准差
+    print("\n计算统计信息:")
     
-    metric_stats = {
-        'mean': np.mean(all_metrics, axis=0),
-        'std': np.std(all_metrics, axis=0)
-    }
-    metric_stats['std'][metric_stats['std'] == 0] = 1.0
+    # Metric统计
+    metric_means = np.zeros(12)
+    metric_stds = np.zeros(12)
+    for i in range(12):
+        if len(all_metrics[i]) > 0:
+            metric_means[i] = np.mean(all_metrics[i])
+            metric_stds[i] = np.std(all_metrics[i])
+            if metric_stds[i] == 0:
+                metric_stds[i] = 1.0
+            print(f"  Metric[{i}]: mean={metric_means[i]:.4f}, std={metric_stds[i]:.4f}, samples={len(all_metrics[i])}")
+        else:
+            metric_means[i] = 0.0
+            metric_stds[i] = 1.0
+            print(f"  Metric[{i}]: 无有效数据")
     
-    log_stats = {
-        'mean': np.mean(all_logs, axis=0),
-        'std': np.std(all_logs, axis=0)
-    }
-    log_stats['std'][log_stats['std'] == 0] = 1.0
+    # Log统计
+    log_means = np.zeros(40)
+    log_stds = np.zeros(40)
+    for i in range(40):
+        if len(all_logs[i]) > 0:
+            log_means[i] = np.mean(all_logs[i])
+            log_stds[i] = np.std(all_logs[i])
+            if log_stds[i] == 0:
+                log_stds[i] = 1.0
+        else:
+            log_means[i] = 0.0
+            log_stds[i] = 1.0
+    print(f"  Log: {np.sum([len(all_logs[i]) > 0 for i in range(40)])}/40 个模板有数据")
     
+    # Trace统计
     trace_stats = []
     for i in range(10):
         if len(all_traces[i]) > 0:
             mean, std = np.mean(all_traces[i]), np.std(all_traces[i])
             trace_stats.append({'mean': mean, 'std': std if std > 0 else 1.0})
+            print(f"  Trace[{SERVICES[i]}]: mean={mean:.4f}, std={std:.4f}, samples={len(all_traces[i])}")
         else:
             trace_stats.append({'mean': 0.0, 'std': 1.0})
+            print(f"  Trace[{SERVICES[i]}]: 无有效数据")
     
-    print("✅ 统计信息计算完成")
+    metric_stats = {'mean': metric_means, 'std': metric_stds}
+    log_stats = {'mean': log_means, 'std': log_stds}
+    
+    print("\n✅ 统计信息计算完成")
     return {'metric': metric_stats, 'log': log_stats, 'trace': trace_stats}
 
 
-def _process_metric_for_sample(st_time, ed_time) -> np.ndarray:
+def _process_metric_for_sample(st_time, ed_time, normalize=True):
     """
     处理单个样本的指标数据（使用预加载的缓存）
     
     Args:
         st_time: 故障开始时间戳（毫秒）
         ed_time: 故障结束时间戳（毫秒）
+        normalize: 是否进行归一化，默认True
     
     Returns:
-        numpy array, shape [10, 20, 12] - 10个instance，20个时间步，12个指标
+        tuple: (metric_data, availability)
+            - metric_data: numpy array, shape [10, 20, 12]
+            - availability: bool - 整个metric模态是否可用
     """    
     # 使用全局定义的服务顺序
     num_instances = len(SERVICES)
     
     # 初始化结果数组 [num_instances, 20 time_steps, 12 metrics]
-    metric_data = np.zeros((num_instances, 20, 12))
+    # 初始化为NaN以便后续识别缺失
+    metric_data = np.full((num_instances, 20, 12), np.nan)
     metric_names = None
     
     # 按照固定顺序遍历每个instance
@@ -187,31 +232,46 @@ def _process_metric_for_sample(st_time, ed_time) -> np.ndarray:
             
             # 一次性赋值所有指标数据
             num_time_steps = min(len(sample_data), 20)
-            metric_data[instance_idx, :num_time_steps, :] = sample_data[metric_names].values[:num_time_steps]
+            if num_time_steps > 0:
+                metric_data[instance_idx, :num_time_steps, :] = sample_data[metric_names].values[:num_time_steps]
         
         except Exception:
             continue
     
-    # 将NaN值替换为0
-    metric_data = np.nan_to_num(metric_data, nan=0.0)
+    # 计算整个模态的可用性（如果所有数据都是NaN，则整个模态不可用）
+    availability = not np.all(np.isnan(metric_data))
     
-    # 归一化
-    if NORMALIZATION_STATS['metric'] is not None:
+    # 处理和归一化
+    if normalize and NORMALIZATION_STATS['metric'] is not None:
         stats = NORMALIZATION_STATS['metric']
+        
+        # 用均值填充NaN
+        for i in range(12):  # 12个指标
+            nan_mask = np.isnan(metric_data[:, :, i])
+            if nan_mask.any():
+                metric_data[:, :, i][nan_mask] = stats['mean'][i]
+        
+        # 归一化
         metric_data = (metric_data - stats['mean']) / stats['std']
+    else:
+        # 如果不归一化（统计阶段），将NaN替换为NaN保持原样
+        pass
     
-    return metric_data
+    return metric_data, availability
 
-def _process_log_for_sample(st_time, ed_time) -> np.ndarray:
+def _process_log_for_sample(st_time, ed_time, normalize=True):
     """
     处理单个样本的log数据（使用预加载的缓存）
     
     Args:
         st_time: 故障开始时间戳（毫秒）
         ed_time: 故障结束时间戳（毫秒）
+        normalize: 是否进行归一化，默认True
     
     Returns:
-        numpy array, shape [10, 40] - 10个instance，每个40维template统计
+        tuple: (log_data, availability)
+            - log_data: numpy array, shape [10, 40]
+            - availability: bool - 整个log模态是否可用
     """
     # 使用全局定义的服务顺序
     num_instances = len(SERVICES)
@@ -245,33 +305,38 @@ def _process_log_for_sample(st_time, ed_time) -> np.ndarray:
         except Exception:
             continue
     
-    # 归一化
-    if NORMALIZATION_STATS['log'] is not None:
+    # 计算整个模态的可用性（如果所有数据都是0，则整个模态不可用）
+    availability = not np.all(log_data == 0)
+    
+    # 归一化（不填充，保持0值）
+    if normalize and NORMALIZATION_STATS['log'] is not None:
         stats = NORMALIZATION_STATS['log']
         log_data = (log_data - stats['mean']) / stats['std']
     
-    return log_data
+    return log_data, availability
 
 
-def _process_trace_for_sample(st_time, ed_time) -> np.ndarray:
+def _process_trace_for_sample(st_time, ed_time, normalize=True):
     """
     处理单个样本的trace数据（使用预加载的缓存）
     
     Args:
         st_time: 故障开始时间戳（毫秒）
         ed_time: 故障结束时间戳（毫秒）
+        normalize: 是否进行归一化，默认True
     
     Returns:
-        np.ndarray: shape [10, 20, 1] - 10个instance，20个时间段，每个时间段的平均duration
-                    如果某个时间段没有数据，则为0.0
+        tuple: (trace_data, availability)
+            - trace_data: numpy array, shape [10, 20, 1]
+            - availability: bool - 整个trace模态是否可用
     """
     # 使用全局定义的服务顺序
     num_instances = len(SERVICES)
     num_time_segments = 20  # 20个时间段
     segment_duration = 30 * 1000  # 每个时间段30秒（毫秒）
     
-    # 初始化结果数组 [num_instances, num_time_segments, 1]，默认值为0.0
-    trace_data = np.zeros((num_instances, num_time_segments, 1))
+    # 初始化结果数组 [num_instances, num_time_segments, 1]，默认值为NaN
+    trace_data = np.full((num_instances, num_time_segments, 1), np.nan)
     
     # 按照固定顺序遍历每个instance
     for instance_idx, instance_name in enumerate(SERVICES):
@@ -304,18 +369,33 @@ def _process_trace_for_sample(st_time, ed_time) -> np.ndarray:
                 for seg_idx in range(num_time_segments):
                     seg_mask = valid_segments == seg_idx
                     if seg_mask.any():
-                        trace_data[instance_idx, seg_idx, 0] = valid_durations[seg_mask].mean()
+                        mean_duration = valid_durations[seg_mask].mean()
+                        # 赋值平均duration（可能为0）
+                        trace_data[instance_idx, seg_idx, 0] = mean_duration
         
         except Exception:
             continue
     
-    # 归一化（按instance）
-    if NORMALIZATION_STATS['trace'] is not None:
+    # 计算整个模态的可用性（如果所有数据都是NaN，则整个模态不可用）
+    availability = not np.all(np.isnan(trace_data))
+    
+    # 处理和归一化
+    if normalize and NORMALIZATION_STATS['trace'] is not None:
         for i in range(num_instances):
             stats = NORMALIZATION_STATS['trace'][i]
+            
+            # 只用均值填充NaN，不填充0（0是真实值）
+            nan_mask = np.isnan(trace_data[i, :, 0])
+            if nan_mask.any():
+                trace_data[i, :, 0][nan_mask] = stats['mean']
+            
+            # 归一化
             trace_data[i, :, 0] = (trace_data[i, :, 0] - stats['mean']) / stats['std']
+    else:
+        # 如果不归一化（统计阶段），保持NaN
+        pass
     
-    return trace_data
+    return trace_data, availability
 
 
 def _process_single_sample(row) -> Dict[str, Any]:
@@ -338,10 +418,19 @@ def _process_single_sample(row) -> Dict[str, Any]:
         'data_type': data_type,
     }
 
-    # 处理各模态数据
-    processed_sample['metric_data'] = _process_metric_for_sample(st_time, ed_time)
-    processed_sample['log_data'] = _process_log_for_sample(st_time, ed_time)
-    processed_sample['trace_data'] = _process_trace_for_sample(st_time, ed_time)
+    # 处理各模态数据（返回数据和可用性标记）
+    metric_data, metric_available = _process_metric_for_sample(st_time, ed_time)
+    log_data, log_available = _process_log_for_sample(st_time, ed_time)
+    trace_data, trace_available = _process_trace_for_sample(st_time, ed_time)
+    
+    processed_sample['metric_data'] = metric_data
+    processed_sample['log_data'] = log_data
+    processed_sample['trace_data'] = trace_data
+    
+    # 添加可用性标记（整个模态级别）
+    processed_sample['metric_available'] = metric_available  # bool
+    processed_sample['log_available'] = log_available        # bool
+    processed_sample['trace_available'] = trace_available    # bool
     
     return processed_sample
 
@@ -403,6 +492,14 @@ if __name__ == "__main__":
     output_file = os.path.join(project_dir, "preprocess", "processed_data", "dataset.pkl")
     with open(output_file, 'wb') as f:
         pickle.dump(processed_data, f)
+    
     print(f"\n💾 数据集已保存: {output_file}")
     print(f"   - 样本数: {len(processed_data)}")
-    print(f"   - 已归一化: Metric, Log, Trace")
+    print(f"\n数据处理策略:")
+    print(f"   Metric: 排除NaN统计，NaN填充为均值")
+    print(f"   Log: 排除0统计，不填充（0是真实的'未出现'）")
+    print(f"   Trace: 排除NaN和0统计，只填充NaN（0是真实值）")
+    print(f"\n可用性标记: 每个样本包含模态级别标记")
+    print(f"   - metric_available: bool（整个模态是否可用）")
+    print(f"   - log_available: bool（整个模态是否可用）")
+    print(f"   - trace_available: bool（整个模态是否可用）")
