@@ -43,7 +43,7 @@ class TVDiagEadro(object):
     def printParams(self):
         self.config.print_configs(self.logger)
 
-    def train(self, train_data, aug_data):
+    def train(self, train_data, val_data, aug_data):
         model = MainModelEadro(self.config).to(self.device)
         opt = torch.optim.Adam(model.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
         
@@ -58,6 +58,8 @@ class TVDiagEadro(object):
         Z_r2fs, Z_f2rs = [], []
         
         earlyStop = EarlyStopping(patience=self.config.patience)
+        best_model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_best.pt')
+        
         for epoch in range(self.config.epochs):
             n_iter = 0
             start_time = time.time()
@@ -145,29 +147,131 @@ class TVDiagEadro(object):
             for k, v in fti_results.items():
                 fti_results[k] = np.mean(v)
                 
-            self.writer.add_scalar('loss/mean total loss', mean_epoch_loss, global_step=epoch)
+            self.writer.add_scalar('loss/train_total_loss', mean_epoch_loss, global_step=epoch)
             self.writer.add_scalar('train/HR@3', rcl_results['HR@3'], global_step=epoch)
             self.writer.add_scalar('train/f1-score', fti_results['f1'], global_step=epoch)
+            
+            # 在验证集上评估
+            val_loss, val_rcl, val_fti = self._validate(model, val_data, supConLoss, uspConLoss)
+            
+            self.writer.add_scalar('loss/val_total_loss', val_loss, global_step=epoch)
+            self.writer.add_scalar('val/HR@3', val_rcl['HR@3'], global_step=epoch)
+            self.writer.add_scalar('val/f1-score', val_fti['f1'], global_step=epoch)
+            
+            self.logger.info(f"Val Loss: {val_loss:.3f}, Val HR@3: {val_rcl['HR@3']:.3%}, Val F1: {val_fti['f1']:.3%}")
 
-            stop = earlyStop.should_stop(mean_epoch_loss, epoch)
+            # 早停判断（基于验证集loss）
+            stop, is_best = earlyStop.should_stop(val_loss, epoch)
+            
+            if is_best:
+                # 保存最优模型
+                state = {
+                    'epoch': epoch,
+                    'model': model.state_dict(),
+                    'opt': opt.state_dict(),
+                    'val_loss': val_loss,
+                }
+                torch.save(state, best_model_path)
+                self.logger.info(f"✓ Best model saved at epoch {epoch} with val_loss: {val_loss:.3f}")
+            
             if stop:
-                self.logger.info(f"Early stop at epoch {epoch} due to lack of improvement.")
+                self.logger.info(f"Early stop at epoch {epoch} due to no improvement on validation set.")
                 break
 
+        # 保存最终模型（最后一轮）
         state = {
             'epoch': epoch,
             'model': model.state_dict(),
             'opt': opt.state_dict(),
         }
-        torch.save(state, os.path.join(self.writer.log_dir, 'TVDiagEadro.pt'))
+        torch.save(state, os.path.join(self.writer.log_dir, 'TVDiagEadro_last.pt'))
         self.result.set_train_efficiency(train_times)
         self.logger.info("Training has finished.")
+        self.logger.info(f"Best model saved at: {best_model_path}")
+
+    def _validate(self, model, val_data, supConLoss, uspConLoss):
+        """
+        在验证集上评估模型
+        
+        Returns:
+            tuple: (val_loss, rcl_results, fti_results)
+        """
+        model.eval()
+        val_loss, val_con_l, val_rcl_l, val_fti_l = 0, 0, 0, 0
+        rcl_results = {"HR@1": [], "HR@2": [], "HR@3": [], "HR@4": [], "HR@5": [], "MRR@3": []}
+        fti_results = {'pre': [], 'rec': [], 'f1': []}
+        n_iter = 0
+        
+        val_dl = DataLoader(val_data, batch_size=self.config.batch_size, shuffle=False, collate_fn=self.collate)
+        
+        with torch.no_grad():
+            for batch_graphs, batch_labels in val_dl:
+                batch_graphs = batch_graphs.to(self.device)
+                instance_labels = batch_labels[:, 0].to(self.device)
+                type_labels = batch_labels[:, 1].to(self.device)
+                
+                fs, es, root_logit, type_logit = model(batch_graphs)
+                
+                # 计算损失
+                l_to, l_cm = torch.tensor(0.0, dtype=torch.float32, device=self.device), \
+                    torch.tensor(0.0, dtype=torch.float32, device=self.device)
+                modalities = self.config.modalities
+                if self.config.TO:
+                    if 'metric' in modalities:
+                        l_to += supConLoss(fs['metric'], instance_labels)
+                    if 'log' in modalities:
+                        l_to += supConLoss(fs['log'], type_labels)
+                    if 'trace' in modalities:
+                        l_to += supConLoss(fs['trace'], instance_labels)
+                
+                if self.config.CM:
+                    if len(modalities) >= 2 and 'metric' in modalities:
+                        left_modalies = [modality for modality in modalities if modality != 'metric']
+                        for modality in left_modalies:
+                            l_cm += uspConLoss(fs['metric'], fs[modality])
+                
+                sigma = self.config.contrastive_loss_scale
+                l_con = sigma * (l_to + l_cm)
+                l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
+                l_fti = F.cross_entropy(type_logit, type_labels)
+                
+                total_loss = l_con + l_rcl + l_fti
+                
+                val_loss += total_loss.detach().item()
+                val_con_l += l_con.detach().item()
+                val_rcl_l += l_rcl.detach().item()
+                val_fti_l += l_fti.detach().item()
+                
+                rcl_res = RCA_eval(root_logit, batch_graphs.batch_num_nodes(), batch_graphs.ndata['root'])
+                fti_res = FTI_eval(type_logit, type_labels)
+                [rcl_results[key].append(value) for key, value in rcl_res.items()]
+                [fti_results[key].append(value) for key, value in fti_res.items()]
+                n_iter += 1
+        
+        mean_val_loss = val_loss / n_iter
+        for k, v in rcl_results.items():
+            rcl_results[k] = np.mean(v)
+        for k, v in fti_results.items():
+            fti_results[k] = np.mean(v)
+        
+        model.train()  # 恢复训练模式
+        return mean_val_loss, rcl_results, fti_results
 
     def evaluate(self, test_data, model=None):
         if model is None:
-            checkpoint = torch.load(os.path.join(self.writer.log_dir, 'TVDiagEadro.pt'))
+            # 加载最优模型权重
+            best_model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_best.pt')
+            if os.path.exists(best_model_path):
+                self.logger.info(f"Loading best model from {best_model_path}")
+                checkpoint = torch.load(best_model_path)
+            else:
+                # 如果没有最优模型，加载最后的模型
+                self.logger.info("Best model not found, loading last model")
+                checkpoint = torch.load(os.path.join(self.writer.log_dir, 'TVDiagEadro_last.pt'))
+            
             model = MainModelEadro(self.config).to(self.device)
             model.load_state_dict(checkpoint['model'])
+            self.logger.info(f"Model loaded from epoch {checkpoint['epoch']}")
        
         model.eval()
         root_logits, type_logits = [], []

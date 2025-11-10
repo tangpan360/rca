@@ -23,8 +23,8 @@ def set_seed(seed):
 
 def build_dataloader(config: Config, logger):
     processor = DatasetProcess(config, logger)
-    train_data, aug_data, test_data = processor.process()
-    return train_data, aug_data, test_data
+    train_data, val_data, aug_data, test_data = processor.process()
+    return train_data, val_data, aug_data, test_data
 
 
 def train_and_evaluate(config: Config, log_dir, exp_name):
@@ -34,10 +34,10 @@ def train_and_evaluate(config: Config, log_dir, exp_name):
     logger.info("TVDiag with Eadro Encoders")
     logger.info("="*50)
     logger.info("Load dataset")
-    train_data, aug_data, test_data = build_dataloader(config, logger)
+    train_data, val_data, aug_data, test_data = build_dataloader(config, logger)
     logger.info("Training...")
     model = TVDiagEadro(config, logger, log_dir)
-    model.train(train_data, aug_data)
+    model.train(train_data, val_data, aug_data)
     res: Result = model.evaluate(test_data)
     return res.export_df(exp_name)
 

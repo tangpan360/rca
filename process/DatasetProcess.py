@@ -2,10 +2,12 @@ import os
 import pickle
 import torch
 import numpy as np
+import pandas as pd
 import dgl
 from core.multimodal_dataset import MultiModalDataSet
 from core.aug import aug_drop_node
 from config.exp_config import Config
+from sklearn.model_selection import train_test_split
 
 
 class DatasetProcess:
@@ -53,8 +55,10 @@ class DatasetProcess:
         self.logger.info(f"Services: {all_services}")
         self.logger.info(f"Fault types: {all_types}")
         
-        # 构建数据集
-        train_data, test_data = MultiModalDataSet(), MultiModalDataSet()
+        # 构建数据集（先收集所有训练样本，然后划分train/val）
+        train_val_samples = []
+        train_val_fault_types = []  # 用于分层抽样
+        test_data = MultiModalDataSet()
         
         for sample_id, sample in data_dict.items():
             metric_data = sample['metric_data']  # [10, 20, 12]
@@ -72,30 +76,45 @@ class DatasetProcess:
             sample_nodes = nodes_dict[str(sample_id)]
             sample_edges = edges_dict[str(sample_id)]
             
+            sample_data = {
+                'metric_Xs': metric_data,
+                'trace_Xs': trace_data,
+                'log_Xs': log_data,
+                'global_root_id': global_root_id,
+                'failure_type_id': failure_type_id,
+                'local_root': fault_service,
+                'nodes': sample_nodes,
+                'edges': sample_edges
+            }
+            
             if data_type == 'train':
-                train_data.add_data(
-                    metric_Xs=metric_data,
-                    trace_Xs=trace_data,
-                    log_Xs=log_data,
-                    global_root_id=global_root_id,
-                    failure_type_id=failure_type_id,
-                    local_root=fault_service,
-                    nodes=sample_nodes,
-                    edges=sample_edges
-                )
+                train_val_samples.append(sample_data)
+                train_val_fault_types.append(fault_type)  # 记录故障类型
             else:
-                test_data.add_data(
-                    metric_Xs=metric_data,
-                    trace_Xs=trace_data,
-                    log_Xs=log_data,
-                    global_root_id=global_root_id,
-                    failure_type_id=failure_type_id,
-                    local_root=fault_service,
-                    nodes=sample_nodes,
-                    edges=sample_edges
-                )
+                test_data.add_data(**sample_data)        
         
-        # 数据增强
+        train_samples, val_samples, train_types, val_types = train_test_split(
+            train_val_samples,
+            train_val_fault_types,
+            test_size=0.3,  # 30%作为验证集
+            random_state=42,  # 固定随机种子，保证可复现
+            stratify=train_val_fault_types  # 按故障类型分层抽样
+        )
+        
+        self.logger.info(f"Split with stratification by fault type:")
+        self.logger.info(f"  Train fault types distribution: {dict(pd.Series(train_types).value_counts())}")
+        self.logger.info(f"  Val fault types distribution: {dict(pd.Series(val_types).value_counts())}")
+        
+        train_data = MultiModalDataSet()
+        val_data = MultiModalDataSet()
+        
+        for sample_data in train_samples:
+            train_data.add_data(**sample_data)
+        
+        for sample_data in val_samples:
+            val_data.add_data(**sample_data)
+        
+        # 数据增强（只对训练集进行增强）
         aug_data = []
         if self.config.aug_times > 0:
             self.logger.info(f"Generating {self.config.aug_times} augmented samples per training sample")
@@ -105,7 +124,7 @@ class DatasetProcess:
                     aug_graph = aug_drop_node(graph, root, drop_percent=self.config.aug_percent)
                     aug_data.append((aug_graph, labels))
         
-        self.logger.info(f"Train samples: {len(train_data)}, Test samples: {len(test_data)}, Aug samples: {len(aug_data)}")
+        self.logger.info(f"Train samples: {len(train_data)}, Val samples: {len(val_data)}, Test samples: {len(test_data)}, Aug samples: {len(aug_data)}")
         
-        return train_data, aug_data, test_data
+        return train_data, val_data, aug_data, test_data
 
