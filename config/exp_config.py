@@ -15,14 +15,10 @@ class Config:
 
         # TVDiag modules
         self.aug_percent = 0.2
-        self.aug_times = 5
-        self.TO = False
-        self.CM = False
+        self.aug_times = 0
         self.dynamic_weight = True
 
         # model config
-        self.temperature = 0.3
-        self.contrastive_loss_scale = 0.1
         self.batch_size = 512
         self.epochs = 500
         self.alert_embedding_dim = 128

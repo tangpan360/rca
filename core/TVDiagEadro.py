@@ -9,8 +9,6 @@ import dgl
 import numpy as np
 
 from core.ita import cal_task_affinity
-from core.loss.UnsupervisedContrastiveLoss import UspConLoss
-from core.loss.SupervisedContrastiveLoss import SupConLoss
 from core.loss.AutomaticWeightedLoss import AutomaticWeightedLoss
 from core.model.MainModelEadro import MainModelEadro
 from helper.eval import *
@@ -47,9 +45,7 @@ class TVDiagEadro(object):
         model = MainModelEadro(self.config).to(self.device)
         opt = torch.optim.Adam(model.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
         
-        awl = AutomaticWeightedLoss(4)
-        supConLoss = SupConLoss(self.config.temperature, self.device).to(self.device)
-        uspConLoss = UspConLoss(self.config.temperature, self.device).to(self.device)
+        awl = AutomaticWeightedLoss(2)  # 只有2个损失：l_rcl 和 l_fti
 
         self.logger.info(model)
         self.logger.info(f"Start training for {self.config.epochs} epochs.")
@@ -64,7 +60,7 @@ class TVDiagEadro(object):
             n_iter = 0
             start_time = time.time()
             model.train()
-            epoch_loss, epoch_con_l, epoch_rcl_l, epoch_fti_l = 0, 0, 0, 0
+            epoch_loss, epoch_rcl_l, epoch_fti_l = 0, 0, 0
             rcl_results = {"HR@1": [], "HR@2": [], "HR@3": [], "HR@4": [],"HR@5": [], "MRR@3": []}
             fti_results = {'pre':[], 'rec':[], 'f1':[]}
 
@@ -88,40 +84,19 @@ class TVDiagEadro(object):
                 opt.zero_grad()
                 fs, es, root_logit, type_logit = model(batch_graphs)
 
-                # Task-oriented learning
-                l_to, l_cm = torch.tensor(0.0, dtype=torch.float32, device=self.device), \
-                    torch.tensor(0.0, dtype=torch.float32, device=self.device)
-                modalities = self.config.modalities
-                if self.config.TO:
-                    if 'metric' in modalities:
-                        l_to += supConLoss(fs['metric'], instance_labels)
-                    if 'log' in modalities:
-                        l_to += supConLoss(fs['log'], type_labels)
-                    if 'trace' in modalities:
-                        l_to += supConLoss(fs['trace'], instance_labels)
-
-                # Cross-modal association
-                if self.config.CM:
-                    if len(modalities) >= 2 and 'metric' in modalities:
-                        left_modalies = [modality for modality in modalities if modality != 'metric']
-                        for modality in left_modalies:
-                            l_cm += uspConLoss(fs['metric'], fs[modality])
-                
-                sigma = self.config.contrastive_loss_scale
-                l_con = sigma * (l_to + l_cm)
+                # 只保留主任务损失
                 l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
                 l_fti = F.cross_entropy(type_logit, type_labels)
                 
                 if self.config.dynamic_weight:
-                    total_loss = awl(l_rcl, l_fti, sigma*l_to, sigma*l_cm)
+                    total_loss = awl(l_rcl, l_fti)
                 else:
-                    total_loss = l_con + l_rcl + l_fti
+                    total_loss = l_rcl + l_fti
 
                 total_loss.backward()
                 opt.step()
                 
                 epoch_loss += total_loss.detach().item()
-                epoch_con_l += l_con.detach().item()
                 epoch_rcl_l += l_rcl.detach().item()
                 epoch_fti_l += l_fti.detach().item()
 
@@ -132,7 +107,6 @@ class TVDiagEadro(object):
                 n_iter += 1
                 
             mean_epoch_loss = epoch_loss / n_iter
-            mean_con_loss = epoch_con_l / n_iter
             mean_rcl_loss = epoch_rcl_l / n_iter
             mean_fti_loss = epoch_fti_l / n_iter
             end_time = time.time()
@@ -152,7 +126,7 @@ class TVDiagEadro(object):
             self.writer.add_scalar('train/f1-score', fti_results['f1'], global_step=epoch)
             
             # 在验证集上评估
-            val_loss, val_rcl, val_fti = self._validate(model, val_data, supConLoss, uspConLoss)
+            val_loss, val_rcl, val_fti = self._validate(model, val_data)
             
             self.writer.add_scalar('loss/val_total_loss', val_loss, global_step=epoch)
             self.writer.add_scalar('val/HR@3', val_rcl['HR@3'], global_step=epoch)
@@ -189,7 +163,7 @@ class TVDiagEadro(object):
         self.logger.info("Training has finished.")
         self.logger.info(f"Best model saved at: {best_model_path}")
 
-    def _validate(self, model, val_data, supConLoss, uspConLoss):
+    def _validate(self, model, val_data):
         """
         在验证集上评估模型
         
@@ -197,7 +171,7 @@ class TVDiagEadro(object):
             tuple: (val_loss, rcl_results, fti_results)
         """
         model.eval()
-        val_loss, val_con_l, val_rcl_l, val_fti_l = 0, 0, 0, 0
+        val_loss, val_rcl_l, val_fti_l = 0, 0, 0
         rcl_results = {"HR@1": [], "HR@2": [], "HR@3": [], "HR@4": [], "HR@5": [], "MRR@3": []}
         fti_results = {'pre': [], 'rec': [], 'f1': []}
         n_iter = 0
@@ -212,33 +186,13 @@ class TVDiagEadro(object):
                 
                 fs, es, root_logit, type_logit = model(batch_graphs)
                 
-                # 计算损失
-                l_to, l_cm = torch.tensor(0.0, dtype=torch.float32, device=self.device), \
-                    torch.tensor(0.0, dtype=torch.float32, device=self.device)
-                modalities = self.config.modalities
-                if self.config.TO:
-                    if 'metric' in modalities:
-                        l_to += supConLoss(fs['metric'], instance_labels)
-                    if 'log' in modalities:
-                        l_to += supConLoss(fs['log'], type_labels)
-                    if 'trace' in modalities:
-                        l_to += supConLoss(fs['trace'], instance_labels)
-                
-                if self.config.CM:
-                    if len(modalities) >= 2 and 'metric' in modalities:
-                        left_modalies = [modality for modality in modalities if modality != 'metric']
-                        for modality in left_modalies:
-                            l_cm += uspConLoss(fs['metric'], fs[modality])
-                
-                sigma = self.config.contrastive_loss_scale
-                l_con = sigma * (l_to + l_cm)
+                # 只计算主任务损失
                 l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
                 l_fti = F.cross_entropy(type_logit, type_labels)
                 
-                total_loss = l_con + l_rcl + l_fti
+                total_loss = l_rcl + l_fti
                 
                 val_loss += total_loss.detach().item()
-                val_con_l += l_con.detach().item()
                 val_rcl_l += l_rcl.detach().item()
                 val_fti_l += l_fti.detach().item()
                 
