@@ -17,7 +17,7 @@ TRACE_DATA_CACHE = {}
 # 全局归一化统计信息（从训练集计算）
 NORMALIZATION_STATS = {
     'metric': None,  # {'mean': [12], 'std': [12]}
-    'log': None,     # {'mean': [40], 'std': [40]}
+    'log': None,     # {'mean': [48], 'std': [48]}
     'trace': None    # [{'mean': float, 'std': float}] * 10
 }
 
@@ -114,7 +114,7 @@ def compute_normalization_stats(label_df):
     
     # 按指标分别收集
     all_metrics = [[] for _ in range(12)]  # 12个metric指标
-    all_logs = [[] for _ in range(40)]     # 40个log模板
+    all_logs = [[] for _ in range(48)]     # 48个log模板
     all_traces = [[] for _ in range(10)]   # 10个instance
     
     for _, row in tqdm(train_df.iterrows(), total=len(train_df), desc="收集训练数据"):
@@ -133,7 +133,7 @@ def compute_normalization_stats(label_df):
             all_metrics[i].extend(valid_vals)
         
         # Log: 按模板收集非0值
-        for i in range(40):
+        for i in range(48):
             vals = log[:, i].flatten()
             non_zero_vals = vals[vals != 0]  # 排除0
             all_logs[i].extend(non_zero_vals)
@@ -163,9 +163,9 @@ def compute_normalization_stats(label_df):
             print(f"  Metric[{i}]: 无有效数据")
     
     # Log统计
-    log_means = np.zeros(40)
-    log_stds = np.zeros(40)
-    for i in range(40):
+    log_means = np.zeros(48)
+    log_stds = np.zeros(48)
+    for i in range(48):
         if len(all_logs[i]) > 0:
             log_means[i] = np.mean(all_logs[i])
             log_stds[i] = np.std(all_logs[i])
@@ -174,7 +174,7 @@ def compute_normalization_stats(label_df):
         else:
             log_means[i] = 0.0
             log_stds[i] = 1.0
-    print(f"  Log: {np.sum([len(all_logs[i]) > 0 for i in range(40)])}/40 个模板有数据")
+    print(f"  Log: {np.sum([len(all_logs[i]) > 0 for i in range(48)])}/48 个模板有数据")
     
     # Trace统计
     trace_stats = []
@@ -270,12 +270,12 @@ def _process_log_for_sample(st_time, ed_time, normalize=True):
     
     Returns:
         tuple: (log_data, availability)
-            - log_data: numpy array, shape [10, 40]
+            - log_data: numpy array, shape [10, 48]
             - availability: bool - 整个log模态是否可用
     """
     # 使用全局定义的服务顺序
     num_instances = len(SERVICES)
-    num_templates = 40  # 固定40个template
+    num_templates = 48  # 固定48个template
     
     # 初始化结果数组 [num_instances, num_templates]
     log_data = np.zeros((num_instances, num_templates))

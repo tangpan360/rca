@@ -27,7 +27,7 @@ class MetricEncoder(nn.Module):
 
 class LogEncoder(nn.Module):
     """Eadro风格的Log编码器: MLP处理template统计"""
-    def __init__(self, input_dim=40, output_dim=128):
+    def __init__(self, input_dim=48, output_dim=128):
         super(LogEncoder, self).__init__()
         self.fc1 = nn.Linear(input_dim, 128)
         self.bn1 = nn.BatchNorm1d(128)
@@ -36,7 +36,7 @@ class LogEncoder(nn.Module):
         self.fc3 = nn.Linear(128, output_dim)
         
     def forward(self, x):
-        # x: [batch, 40]
+        # x: [batch, 48]
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.fc2(x)))
         x = self.fc3(x)  # [batch, output_dim]
