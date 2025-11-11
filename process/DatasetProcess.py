@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import dgl
 from core.multimodal_dataset import MultiModalDataSet
-from core.aug import aug_drop_node
+from core.aug import aug_drop_node, aug_importance_aware_drop
 from config.exp_config import Config
 from sklearn.model_selection import train_test_split
 
@@ -117,11 +117,42 @@ class DatasetProcess:
         # 数据增强（只对训练集进行增强）
         aug_data = []
         if self.config.aug_times > 0:
+            # 确定使用的增强策略
+            use_degree = getattr(self.config, 'use_degree', True)
+            use_distance = getattr(self.config, 'use_distance', True)
+            
+            # 策略描述
+            if use_degree and use_distance:
+                strategy_name = "度数+距离综合重要性感知增强"
+            elif use_degree and not use_distance:
+                strategy_name = "仅度数重要性感知增强"
+            elif not use_degree and use_distance:
+                strategy_name = "仅距离重要性感知增强"
+            else:
+                strategy_name = "传统随机增强 (fallback)"
+            
+            self.logger.info(f"数据增强策略: {strategy_name}")
+            self.logger.info(f"  - 使用度数重要性: {use_degree}")
+            self.logger.info(f"  - 使用距离重要性: {use_distance}")
             self.logger.info(f"Generating {self.config.aug_times} augmented samples per training sample")
+            
             for time in range(self.config.aug_times):
                 for (graph, labels) in train_data:
                     root = graph.ndata['root'].tolist().index(1)
-                    aug_graph = aug_drop_node(graph, root, drop_percent=self.config.aug_percent)
+                    
+                    # 使用参数化重要性感知增强
+                    if use_degree or use_distance:
+                        aug_graph = aug_importance_aware_drop(
+                            graph, 
+                            root, 
+                            drop_percent=self.config.aug_percent,
+                            use_degree=use_degree,
+                            use_distance=use_distance
+                        )
+                    else:
+                        # 两个参数都为False时，使用随机增强
+                        aug_graph = aug_drop_node(graph, root, drop_percent=self.config.aug_percent)
+                    
                     aug_data.append((aug_graph, labels))
         
         self.logger.info(f"Train samples: {len(train_data)}, Val samples: {len(val_data)}, Test samples: {len(test_data)}, Aug samples: {len(aug_data)}")

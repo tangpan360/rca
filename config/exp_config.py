@@ -14,9 +14,13 @@ class Config:
         self.trace_ab_type = True
 
         # TVDiag modules
-        self.aug_percent = 0.2
-        self.aug_times = 0
+        self.aug_percent = 0.2  # 删除节点比例
+        self.aug_times = 5       # 启用数据增强，每个样本生成5个增强样本
         self.dynamic_weight = True
+        
+        # 参数化重要性感知增强配置
+        self.use_degree = True    # 是否考虑节点度数（入度+出度）重要性
+        self.use_distance = True  # 是否考虑距离根因节点的距离重要性
 
         # model config
         self.batch_size = 512
