@@ -22,6 +22,11 @@ class Config:
         self.use_degree = True    # 是否考虑节点度数（入度+出度）重要性
         self.use_distance = True  # 是否考虑距离根因节点的距离重要性
 
+        # 跨模态注意力融合配置
+        self.use_cross_modal_attention = True
+        self.attention_heads = 4      # 注意力头数
+        self.attention_dropout = 0.1  # 注意力dropout
+
         # model config
         self.batch_size = 512
         self.epochs = 500

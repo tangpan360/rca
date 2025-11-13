@@ -6,6 +6,7 @@ from core.model.Classifier import Classifier
 from core.model.Voter import Voter
 from core.model.Encoder import Encoder
 from core.model.EadroEncoder import EadroModalEncoder
+from core.model.CrossModalFusion import CrossModalAttentionFusion
 
 
 class MainModelEadro(nn.Module):
@@ -15,6 +16,9 @@ class MainModelEadro(nn.Module):
     """
     def __init__(self, config: Config):
         super(MainModelEadro, self).__init__()
+        
+        # 保存配置参数
+        self.use_cross_modal_attention = getattr(config, 'use_cross_modal_attention', True)
         
         # Eadro模态编码器（将原始数据编码为固定维度）
         self.eadro_encoder = EadroModalEncoder(output_dim=config.alert_embedding_dim)
@@ -31,8 +35,28 @@ class MainModelEadro(nn.Module):
                 feat_drop=config.feat_drop
             )
 
-        fti_fuse_dim = len(config.modalities) * config.graph_out
-        rcl_fuse_dim = len(config.modalities) * config.graph_out
+        # 跨模态注意力融合模块（仅在启用时创建）
+        if self.use_cross_modal_attention:
+            self.cross_modal_fusion_graph = CrossModalAttentionFusion(
+                input_dim=config.graph_out,
+                num_heads=getattr(config, 'attention_heads', 4),
+                dropout=getattr(config, 'attention_dropout', 0.1)
+            )
+            self.cross_modal_fusion_node = CrossModalAttentionFusion(
+                input_dim=config.graph_out,
+                num_heads=getattr(config, 'attention_heads', 4),
+                dropout=getattr(config, 'attention_dropout', 0.1)
+            )
+        
+        # 动态计算分类器输入维度
+        if self.use_cross_modal_attention:
+            # 注意力融合模式: 输出维度保持为32
+            fti_fuse_dim = config.graph_out
+            rcl_fuse_dim = config.graph_out
+        else:
+            # 传统concatenation模式: 输出维度为3*32=96
+            fti_fuse_dim = len(config.modalities) * config.graph_out
+            rcl_fuse_dim = len(config.modalities) * config.graph_out
 
         self.locator = Voter(rcl_fuse_dim,
                              hiddens=config.linear_hidden,
@@ -63,9 +87,15 @@ class MainModelEadro(nn.Module):
             fs[modality] = f_d
             es[modality] = e_d
 
-        # 步骤3: 多模态融合
-        f = torch.cat(tuple(fs.values()), dim=1)
-        e = torch.cat(list(es.values()), dim=1)
+        # 步骤3: 多模态融合（根据配置选择融合策略）
+        if self.use_cross_modal_attention:
+            # 使用跨模态注意力融合
+            f = self.cross_modal_fusion_graph(fs)
+            e = self.cross_modal_fusion_node(es)
+        else:
+            # 使用传统concatenation融合（baseline）
+            f = torch.cat(tuple(fs.values()), dim=1)
+            e = torch.cat(list(es.values()), dim=1)
 
         # 步骤4: 故障诊断
         type_logit = self.typeClassifier(f)  # 故障类型识别
