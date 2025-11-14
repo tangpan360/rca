@@ -5,6 +5,7 @@ class Config:
         self.reconstruct = False
         self.log_step = 20
         self.gpu_device = '0'
+        self.seed = 2
 
         self.modalities = ['metric', 'trace', 'log']
         

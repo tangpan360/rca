@@ -97,7 +97,7 @@ class DatasetProcess:
             train_val_samples,
             train_val_fault_types,
             test_size=0.3,  # 30%作为验证集
-            random_state=42,  # 固定随机种子，保证可复现
+            random_state=self.config.seed,  # 固定随机种子，保证可复现
             stratify=train_val_fault_types  # 按故障类型分层抽样
         )
         

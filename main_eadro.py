@@ -28,7 +28,7 @@ def build_dataloader(config: Config, logger):
 
 
 def train_and_evaluate(config: Config, log_dir, exp_name):
-    set_seed(2)
+    set_seed(config.seed)
     logger = get_logger(log_dir, exp_name)
     logger.info("="*50)
     logger.info("TVDiag with Eadro Encoders")
