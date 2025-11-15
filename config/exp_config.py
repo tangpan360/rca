@@ -27,9 +27,15 @@ class Config:
         self.use_cross_modal_attention = True
         self.attention_heads = 4      # 注意力头数
         self.attention_dropout = 0.1  # 注意力dropout
+        
+        # 模态缺失训练配置
+        self.use_modality_dropout = True       # 是否启用模态缺失训练
+        self.modality_dropout_mode = "multi_scenario"  # "random" 或 "multi_scenario"
+        self.modality_dropout_prob = 0.3       # 仅random模式使用
+        self.missing_modality_ratio = 1      # 缺失模态样本相对于原始batch的比例
 
         # model config
-        self.batch_size = 512
+        self.batch_size = 8
         self.epochs = 500
         self.alert_embedding_dim = 128
         self.graph_hidden_dim = 64

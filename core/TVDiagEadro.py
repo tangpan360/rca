@@ -82,11 +82,21 @@ class TVDiagEadro(object):
                 type_labels = type_labels.to(self.device)
 
                 opt.zero_grad()
-                fs, es, root_logit, type_logit = model(batch_graphs)
-
-                # 只保留主任务损失
-                l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
-                l_fti = F.cross_entropy(type_logit, type_labels)
+                
+                # 多场景数据扩展或普通训练
+                if (getattr(self.config, 'use_modality_dropout', False) and 
+                    getattr(self.config, 'modality_dropout_mode', 'random') == 'multi_scenario' and
+                    getattr(self.config, 'use_cross_modal_attention', False)):
+                    # 多场景训练：将batch扩展为4种模态配置的混合batch
+                    expanded_graphs, expanded_type_labels = self._expand_batch_multi_scenario(batch_graphs, type_labels)
+                    fs, es, root_logit, type_logit = model(expanded_graphs)
+                    l_rcl = self.cal_rcl_loss(root_logit, expanded_graphs)
+                    l_fti = F.cross_entropy(type_logit, expanded_type_labels)
+                else:
+                    # 普通训练
+                    fs, es, root_logit, type_logit = model(batch_graphs)
+                    l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
+                    l_fti = F.cross_entropy(type_logit, type_labels)
                 
                 if self.config.dynamic_weight:
                     total_loss = awl(l_rcl, l_fti)
@@ -100,8 +110,19 @@ class TVDiagEadro(object):
                 epoch_rcl_l += l_rcl.detach().item()
                 epoch_fti_l += l_fti.detach().item()
 
-                rcl_res = RCA_eval(root_logit, batch_graphs.batch_num_nodes(), batch_graphs.ndata['root'])
-                fti_res = FTI_eval(type_logit, type_labels)
+                # 在多场景模式下，使用原始batch进行评估
+                if (getattr(self.config, 'use_modality_dropout', False) and 
+                    getattr(self.config, 'modality_dropout_mode', 'random') == 'multi_scenario' and
+                    getattr(self.config, 'use_cross_modal_attention', False)):
+                    # 多场景模式：使用原始batch（完整模态）进行评估
+                    _, _, eval_root_logit, eval_type_logit = model(batch_graphs)
+                    rcl_res = RCA_eval(eval_root_logit, batch_graphs.batch_num_nodes(), batch_graphs.ndata['root'])
+                    fti_res = FTI_eval(eval_type_logit, type_labels)
+                else:
+                    # 普通模式：使用训练的预测结果
+                    rcl_res = RCA_eval(root_logit, batch_graphs.batch_num_nodes(), batch_graphs.ndata['root'])
+                    fti_res = FTI_eval(type_logit, type_labels)
+                
                 [rcl_results[key].append(value) for key, value in rcl_res.items()]
                 [fti_results[key].append(value) for key, value in fti_res.items()]
                 n_iter += 1
@@ -124,7 +145,7 @@ class TVDiagEadro(object):
             self.writer.add_scalar('loss/train_total_loss', mean_epoch_loss, global_step=epoch)
             self.writer.add_scalar('train/HR@3', rcl_results['HR@3'], global_step=epoch)
             self.writer.add_scalar('train/f1-score', fti_results['f1'], global_step=epoch)
-            
+
             # 在验证集上评估
             val_loss, val_rcl, val_fti = self._validate(model, val_data)
             
@@ -292,5 +313,104 @@ class TVDiagEadro(object):
         batched_graph = dgl.batch(graphs)
         batched_labels = torch.tensor(labels)
         return batched_graph, batched_labels
+
+    def _expand_batch_multi_scenario(self, batch_graphs, type_labels):
+        """
+        多场景batch扩展：将原始batch扩展为1.5x大小的混合batch
+        
+        比例分配：
+        - 完整模态：N个样本（保持原有数量）
+        - 缺失模态：N/2个样本（总共，平均分配给3种缺失情况）
+        - 总样本数：1.5N
+        
+        Args:
+            batch_graphs: 原始batch图数据
+            type_labels: 原始类型标签
+            
+        Returns:
+            expanded_graphs: 扩展后的图数据（1.5x大小）
+            expanded_type_labels: 扩展后的类型标签（1.5x大小）
+        """
+        
+        # 解batch获取单个图
+        graph_list = dgl.unbatch(batch_graphs)
+        original_batch_size = len(graph_list)
+        
+        # 如果启用了数据增强，batch包含原始数据+增强数据，需要只从原始数据中选择
+        if self.config.aug_times > 0:
+            # batch结构：前半部分是原始数据，后半部分是增强数据
+            original_data_size = original_batch_size // 2
+            original_graphs = graph_list[:original_data_size]  # 只取原始数据
+            original_labels = type_labels[:original_data_size]
+            print(f"   🔍 检测到数据增强: batch={original_batch_size}, 仅使用原始数据={original_data_size}")
+        else:
+            # 没有数据增强，整个batch都是原始数据
+            original_graphs = graph_list
+            original_labels = type_labels
+            original_data_size = original_batch_size
+        
+        # 计算各种配置的样本数量（基于原始数据大小）
+        full_modality_count = original_data_size  # 完整模态样本数
+        missing_ratio = getattr(self.config, 'missing_modality_ratio', 0.5)  # 缺失模态比例
+        missing_modality_total = int(original_data_size * missing_ratio)  # 缺失模态总数
+        missing_per_type = missing_modality_total // 3  # 每种缺失类型的样本数
+        
+        # 处理不能整除的情况，优先分配给缺metric
+        remaining = missing_modality_total - missing_per_type * 3
+        missing_metric_count = missing_per_type + remaining
+        missing_log_count = missing_per_type
+        missing_trace_count = missing_per_type
+        
+        print(f"   📊 缺失模态比例: {missing_ratio:.1f} (总缺失={missing_modality_total})")
+        print(f"   📊 样本分配: 完整={full_modality_count}, 缺metric={missing_metric_count}, 缺log={missing_log_count}, 缺trace={missing_trace_count}")
+        
+        # 定义模态配置和对应数量
+        config_specs = [
+            ({'metric': True, 'log': True, 'trace': True}, full_modality_count),    # 完整
+            ({'metric': False, 'log': True, 'trace': True}, missing_metric_count),  # 缺metric
+            ({'metric': True, 'log': False, 'trace': True}, missing_log_count),     # 缺log  
+            ({'metric': True, 'log': True, 'trace': False}, missing_trace_count)    # 缺trace
+        ]
+        
+        expanded_graphs = []
+        expanded_labels = []
+        modality_masks = []  # 收集所有的模态掩码
+        
+        # 为每种配置生成对应数量的样本
+        for config_idx, (config, count) in enumerate(config_specs):
+            is_full_modality = (config_idx == 0)  # 第一个配置是完整模态
+            
+            for i in range(count):
+                if is_full_modality:
+                    # 完整模态：顺序使用所有原始数据（确保覆盖完整）
+                    graph_idx = i % original_data_size
+                else:
+                    # 缺失模态：随机选择（增加训练多样性）
+                    graph_idx = random.randint(0, original_data_size - 1)
+                
+                graph = original_graphs[graph_idx]
+                
+                # 复制图
+                new_graph = graph.clone()
+                expanded_graphs.append(new_graph)
+                expanded_labels.append(original_labels[graph_idx].item())
+                
+                # 收集模态掩码
+                mask = torch.tensor([
+                    config['metric'], config['log'], config['trace']
+                ], dtype=torch.bool).to(graph.device)
+                modality_masks.append(mask)
+        
+        # 重新batch化
+        expanded_batch_graphs = dgl.batch(expanded_graphs)
+        expanded_type_labels = torch.tensor(expanded_labels, dtype=original_labels.dtype).to(original_labels.device)
+        
+        # 将模态掩码存储在batch图的属性中
+        expanded_batch_graphs.modality_masks = torch.stack(modality_masks)  # [batch_size, 3]
+        
+        total_samples = len(expanded_labels)
+        print(f"   ✅ Batch扩展: 原始数据{original_data_size} → {total_samples} (扩展倍数: {total_samples/original_data_size:.1f}x)")
+        
+        return expanded_batch_graphs, expanded_type_labels
 
 
