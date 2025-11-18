@@ -22,6 +22,9 @@ class Config:
         # 参数化重要性感知增强配置
         self.use_degree = True    # 是否考虑节点度数（入度+出度）重要性
         self.use_distance = True  # 是否考虑距离根因节点的距离重要性
+        
+        # 模型权重选择配置
+        self.use_best_model = True  # True: 使用验证集最优权重, False: 使用最后权重
 
         # model config
         self.batch_size = 512

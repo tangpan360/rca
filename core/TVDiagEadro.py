@@ -214,14 +214,17 @@ class TVDiagEadro(object):
     def evaluate(self, test_data, model=None):
         if model is None:
             # 加载最优模型权重
-            best_model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_best.pt')
-            if os.path.exists(best_model_path):
-                self.logger.info(f"Loading best model from {best_model_path}")
-                checkpoint = torch.load(best_model_path)
+            if self.config.use_best_model:
+                model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_best.pt')
+                if not os.path.exists(model_path):
+                    model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_last.pt')
+                    self.logger.info("Best model not found, fallback to last model")
             else:
-                # 如果没有最优模型，加载最后的模型
-                self.logger.info("Best model not found, loading last model")
-                checkpoint = torch.load(os.path.join(self.writer.log_dir, 'TVDiagEadro_last.pt'))
+                # 加载最后的模型
+                model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_last.pt')
+            
+            self.logger.info(f"Loading model from {model_path}")
+            checkpoint = torch.load(model_path)
             
             model = MainModelEadro(self.config).to(self.device)
             model.load_state_dict(checkpoint['model'])
