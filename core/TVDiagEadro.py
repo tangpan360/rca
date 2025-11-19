@@ -82,7 +82,13 @@ class TVDiagEadro(object):
                 type_labels = type_labels.to(self.device)
 
                 opt.zero_grad()
-                fs, es, root_logit, type_logit = model(batch_graphs)
+                
+                # 确定训练时使用的模态
+                active_modalities = None
+                if self.config.use_partial_modalities:
+                    active_modalities = self.config.training_modalities
+                
+                fs, es, root_logit, type_logit = model(batch_graphs, active_modalities=active_modalities)
 
                 # 只保留主任务损失
                 l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
@@ -162,6 +168,12 @@ class TVDiagEadro(object):
         self.result.set_train_efficiency(train_times)
         self.logger.info("Training has finished.")
         self.logger.info(f"Best model saved at: {best_model_path}")
+        
+        # 构建k-NN向量库（如果启用）
+        if self.config.use_knn_imputation:
+            self.logger.info("构建k-NN向量库...")
+            model.build_knn_database(train_dl, self.device, self.logger)
+            self.logger.info("k-NN向量库构建完成")
 
     def _validate(self, model, val_data):
         """
@@ -184,7 +196,12 @@ class TVDiagEadro(object):
                 instance_labels = batch_labels[:, 0].to(self.device)
                 type_labels = batch_labels[:, 1].to(self.device)
                 
-                fs, es, root_logit, type_logit = model(batch_graphs)
+                # 确定验证时使用的模态
+                active_modalities = None
+                if self.config.use_partial_modalities:
+                    active_modalities = self.config.testing_modalities
+                
+                fs, es, root_logit, type_logit = model(batch_graphs, active_modalities=active_modalities)
                 
                 # 只计算主任务损失
                 l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
@@ -229,6 +246,10 @@ class TVDiagEadro(object):
             model = MainModelEadro(self.config).to(self.device)
             model.load_state_dict(checkpoint['model'])
             self.logger.info(f"Model loaded from epoch {checkpoint['epoch']}")
+        
+        # 设置k-NN填补器（如果启用）
+        if self.config.use_knn_imputation:
+            model.setup_knn_imputer(self.logger)
        
         model.eval()
         root_logits, type_logits = [], []
@@ -245,7 +266,12 @@ class TVDiagEadro(object):
         
             start_time = time.time()
             with torch.no_grad():
-                _, _, root_logit, type_logit = model(graph)
+                # 确定测试时使用的模态
+                active_modalities = None
+                if self.config.use_partial_modalities:
+                    active_modalities = self.config.testing_modalities
+                
+                _, _, root_logit, type_logit = model(graph, active_modalities=active_modalities)
                 root_logits.append(root_logit.flatten())
                 type_logits.append(type_logit.flatten())
             end_time = time.time()
@@ -295,5 +321,88 @@ class TVDiagEadro(object):
         batched_graph = dgl.batch(graphs)
         batched_labels = torch.tensor(labels)
         return batched_graph, batched_labels
+    
+    def evaluate_with_missing_modalities(self, test_data, missing_modalities=None, model=None):
+        """
+        测试模态缺失场景下的模型性能
+        Args:
+            test_data: 测试数据
+            missing_modalities: 缺失的模态列表，如 ['log'] 或 ['metric', 'trace']
+            model: 可选的模型实例
+        """
+        if model is None:
+            # 加载模型（与evaluate函数相同逻辑）
+            if self.config.use_best_model:
+                model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_best.pt')
+                if not os.path.exists(model_path):
+                    model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_last.pt')
+                    self.logger.info("Best model not found, fallback to last model")
+            else:
+                model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_last.pt')
+            
+            self.logger.info(f"Loading model from {model_path}")
+            checkpoint = torch.load(model_path)
+            
+            model = MainModelEadro(self.config).to(self.device)
+            model.load_state_dict(checkpoint['model'])
+            self.logger.info(f"Model loaded from epoch {checkpoint['epoch']}")
+            
+            # 设置k-NN填补器（如果启用）
+            if self.config.use_knn_imputation:
+                model.setup_knn_imputer(self.logger)
+        
+        if missing_modalities:
+            self.logger.info(f"测试场景：缺失模态 {missing_modalities}")
+            if self.config.use_knn_imputation:
+                self.logger.info(f"使用k-NN填补，k={self.config.knn_k}, 相似度={self.config.knn_similarity_metric}")
+            else:
+                self.logger.info("未启用k-NN填补，将使用原始模态数据")
+        else:
+            self.logger.info("测试场景：完整模态")
+        
+        model.eval()
+        root_logits, type_logits = [], []
+        roots, types = [], []
+        inference_times = []
+        num_node_list = []
+        
+        for data in test_data:
+            graph = data[0].to(self.device)
+            failure_type = data[1][1]
+            roots.append(graph.ndata['root'])
+            types.append(failure_type)
+            num_node_list.append(graph.num_nodes())
+            
+            start_time = time.time()
+            with torch.no_grad():
+                # 确定测试时使用的模态
+                active_modalities = None
+                if self.config.use_partial_modalities:
+                    active_modalities = self.config.testing_modalities
+                
+                # 传入缺失模态信息和使用模态信息
+                _, _, root_logit, type_logit = model(graph, missing_modalities, active_modalities)
+                root_logits.append(root_logit.flatten())
+                type_logits.append(type_logit.flatten())
+            end_time = time.time()
+            inference_times.append(end_time - start_time)
+        
+        root_logits = torch.hstack(root_logits).cpu()
+        type_logits = torch.vstack(type_logits).cpu()
+        roots = torch.hstack(roots)
+        types = torch.tensor(types)
+        
+        rcl_res = RCA_eval(root_logits, num_node_list, roots)
+        fti_res = FTI_eval(type_logits, types)
+        
+        avg_3 = np.mean([rcl_res['HR@1'], rcl_res['HR@2'], rcl_res['HR@3']])
+        
+        # 打印结果
+        missing_str = f"[缺失{missing_modalities}]" if missing_modalities else "[完整模态]"
+        self.logger.info(f"{missing_str} [Root localization] HR@1: {rcl_res['HR@1']:.3%}, HR@2: {rcl_res['HR@2']:.3%}, HR@3: {rcl_res['HR@3']:.3%}, HR@4: {rcl_res['HR@4']:.3%}, HR@5: {rcl_res['HR@5']:.3%}, avg@3: {avg_3:.3f}, MRR@3: {rcl_res['MRR@3']:.3f}")
+        self.logger.info(f"{missing_str} [Failure type classification] precision: {fti_res['pre']:.3%}, recall: {fti_res['rec']:.3%}, f1-score: {fti_res['f1']:.3%}")
+        self.logger.info(f"{missing_str} The average test time is {np.mean(inference_times):.4f}[s]")
+        
+        return rcl_res, fti_res, np.mean(inference_times)
 
 

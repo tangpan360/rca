@@ -9,6 +9,13 @@ class Config:
 
         self.modalities = ['metric', 'trace', 'log']
         
+        # 部分模态训练/测试配置
+        self.use_partial_modalities = False  # 是否启用部分模态功能
+        # self.training_modalities = ['metric', 'trace', 'log']  # 训练时使用的模态
+        # self.testing_modalities = ['metric', 'trace', 'log']   # 测试时使用的模态
+        self.training_modalities = ['trace', 'log']  # 训练时使用的模态
+        self.testing_modalities = ['trace', 'log']   # 测试时使用的模态
+        
         # alert config
         self.metric_direction = True
         self.trace_op = True
@@ -25,9 +32,16 @@ class Config:
         
         # 模型权重选择配置
         self.use_best_model = True  # True: 使用验证集最优权重, False: 使用最后权重
+        
+        # k-NN模态填补配置
+        self.use_knn_imputation = False  # 是否启用k-NN模态填补（消融实验）
+        self.knn_k = 3                   # k-NN中的k值，默认使用top-3相似样本
+        self.knn_similarity_metric = 'cosine'  # 相似度度量: 'cosine', 'euclidean'
+        self.knn_strategy = 'average'    # 多模态相似度组合策略: 'average', 'weighted'
+        self.vector_db_path = 'vector_database.pt'  # 向量库保存路径
 
         # model config
-        self.batch_size = 512
+        self.batch_size = 8
         self.epochs = 500
         self.alert_embedding_dim = 128
         self.graph_hidden_dim = 64
