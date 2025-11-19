@@ -15,6 +15,10 @@ class Config:
         # self.testing_modalities = ['metric', 'trace', 'log']   # 测试时使用的模态
         self.training_modalities = ['trace', 'log']  # 训练时使用的模态
         self.testing_modalities = ['trace', 'log']   # 测试时使用的模态
+        # self.training_modalities = ['metric', 'log']  # 训练时使用的模态
+        # self.testing_modalities = ['metric', 'log']   # 测试时使用的模态
+        # self.training_modalities = ['metric', 'trace']  # 训练时使用的模态
+        # self.testing_modalities = ['metric', 'trace']   # 测试时使用的模态
         
         # alert config
         self.metric_direction = True
