@@ -82,7 +82,13 @@ class TVDiagEadro(object):
                 type_labels = type_labels.to(self.device)
 
                 opt.zero_grad()
-                fs, es, root_logit, type_logit = model(batch_graphs)
+                
+                # 确定训练时使用的模态
+                active_modalities = None
+                if self.config.use_partial_modalities:
+                    active_modalities = self.config.training_modalities
+                
+                fs, es, root_logit, type_logit = model(batch_graphs, active_modalities=active_modalities)
 
                 # 只保留主任务损失
                 l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
@@ -184,7 +190,12 @@ class TVDiagEadro(object):
                 instance_labels = batch_labels[:, 0].to(self.device)
                 type_labels = batch_labels[:, 1].to(self.device)
                 
-                fs, es, root_logit, type_logit = model(batch_graphs)
+                # 确定验证时使用的模态
+                active_modalities = None
+                if self.config.use_partial_modalities:
+                    active_modalities = self.config.testing_modalities
+                
+                fs, es, root_logit, type_logit = model(batch_graphs, active_modalities=active_modalities)
                 
                 # 只计算主任务损失
                 l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
@@ -245,7 +256,12 @@ class TVDiagEadro(object):
         
             start_time = time.time()
             with torch.no_grad():
-                _, _, root_logit, type_logit = model(graph)
+                # 确定测试时使用的模态
+                active_modalities = None
+                if self.config.use_partial_modalities:
+                    active_modalities = self.config.testing_modalities
+                
+                _, _, root_logit, type_logit = model(graph, active_modalities=active_modalities)
                 root_logits.append(root_logit.flatten())
                 type_logits.append(type_logit.flatten())
             end_time = time.time()

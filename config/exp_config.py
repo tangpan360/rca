@@ -9,6 +9,17 @@ class Config:
 
         self.modalities = ['metric', 'trace', 'log']
         
+        # 部分模态训练/测试配置
+        self.use_partial_modalities = False  # 是否启用部分模态功能
+        # self.training_modalities = ['metric', 'trace', 'log']  # 训练时使用的模态
+        # self.testing_modalities = ['metric', 'trace', 'log']   # 测试时使用的模态
+        # self.training_modalities = ['trace', 'log']  # 训练时使用的模态
+        # self.testing_modalities = ['trace', 'log']   # 测试时使用的模态
+        # self.training_modalities = ['metric', 'log']  # 训练时使用的模态
+        # self.testing_modalities = ['metric', 'log']   # 测试时使用的模态
+        self.training_modalities = ['metric', 'trace']  # 训练时使用的模态
+        self.testing_modalities = ['metric', 'trace']   # 测试时使用的模态
+        
         # alert config
         self.metric_direction = True
         self.trace_op = True
@@ -27,7 +38,7 @@ class Config:
         self.use_best_model = True  # True: 使用验证集最优权重, False: 使用最后权重
 
         # model config
-        self.batch_size = 512
+        self.batch_size = 8
         self.epochs = 500
         self.alert_embedding_dim = 128
         self.graph_hidden_dim = 64

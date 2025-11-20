@@ -33,6 +33,15 @@ def train_and_evaluate(config: Config, log_dir, exp_name):
     logger.info("="*50)
     logger.info("TVDiag with Eadro Encoders")
     logger.info("="*50)
+    
+    # 打印使用的模态配置
+    if config.use_partial_modalities:
+        logger.info(f"部分模态模式启用")
+        logger.info(f"训练模态: {config.training_modalities}")
+        logger.info(f"测试模态: {config.testing_modalities}")
+    else:
+        logger.info(f"使用全部模态: {config.modalities}")
+    
     logger.info("Load dataset")
     train_data, val_data, aug_data, test_data = build_dataloader(config, logger)
     logger.info("Training...")
