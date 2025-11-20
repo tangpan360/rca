@@ -62,7 +62,7 @@ class DatasetProcess:
         
         for sample_id, sample in data_dict.items():
             metric_data = sample['metric_data']  # [10, 20, 12]
-            log_data = sample['log_data']  # [10, 40]
+            log_data = sample['log_data']  # [10, 48]
             trace_data = sample['trace_data']  # [10, 20, 1]
             
             fault_service = sample['fault_service']

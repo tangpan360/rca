@@ -80,7 +80,7 @@ class EadroModalEncoder(nn.Module):
         """
         Args:
             metric_data: [batch, 20, 12]
-            log_data: [batch, 40]
+            log_data: [batch, 48]
             trace_data: [batch, 20, 1]
         Returns:
             metric_emb: [batch, output_dim]

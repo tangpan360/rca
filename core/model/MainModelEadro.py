@@ -87,7 +87,7 @@ class MainModelEadro(nn.Module):
         
         # 步骤1: 使用Eadro编码器处理原始数据
         metric_raw = batch_graphs.ndata['metric']  # [num_nodes, 20, 12]
-        log_raw = batch_graphs.ndata['log']  # [num_nodes, 40]
+        log_raw = batch_graphs.ndata['log']  # [num_nodes, 48]
         trace_raw = batch_graphs.ndata['trace']  # [num_nodes, 20, 1]
         
         metric_emb, log_emb, trace_emb = self.eadro_encoder(metric_raw, log_raw, trace_raw)
