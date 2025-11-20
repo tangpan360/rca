@@ -38,11 +38,18 @@ class Config:
         self.use_best_model = True  # True: 使用验证集最优权重, False: 使用最后权重
         
         # k-NN模态填补配置
-        self.use_knn_imputation = False  # 是否启用k-NN模态填补（消融实验）
-        self.knn_k = 3                   # k-NN中的k值，默认使用top-3相似样本
+        self.use_knn_imputation = True  # 是否启用k-NN模态填补（消融实验）
+        self.knn_k = 1                   # k-NN中的k值，默认使用top-3相似样本
         self.knn_similarity_metric = 'cosine'  # 相似度度量: 'cosine', 'euclidean'
         self.knn_strategy = 'average'    # 多模态相似度组合策略: 'average', 'weighted'
         self.vector_db_path = 'vector_database.pt'  # 向量库保存路径
+        
+        # k-NN微调配置
+        self.enable_knn_finetune = True  # 是否启用k-NN微调训练
+        self.finetune_epochs = 50         # 微调轮数
+        self.finetune_lr_ratio = 0.1     # 微调学习率相对基础学习率的比例
+        self.freeze_eadro_encoder = True # 是否冻结Eadro编码器
+        self.finetune_patience = 10       # 微调早停耐心值
 
         # model config
         self.batch_size = 8

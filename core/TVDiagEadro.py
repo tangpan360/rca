@@ -174,6 +174,13 @@ class TVDiagEadro(object):
             self.logger.info("构建k-NN向量库...")
             model.build_knn_database(train_dl, self.device, self.logger)
             self.logger.info("k-NN向量库构建完成")
+            
+            # k-NN微调训练（如果启用）
+            if self.config.enable_knn_finetune:
+                self.logger.info("=" * 60)
+                self.logger.info("开始k-NN微调训练...")
+                self.logger.info("=" * 60)
+                self._knn_finetune(model, train_data, val_data)
 
     def _validate(self, model, val_data):
         """
@@ -317,10 +324,20 @@ class TVDiagEadro(object):
         return l_rcl
 
     def collate(self, samples):
-        graphs, labels = map(list, zip(*samples))
-        batched_graph = dgl.batch(graphs)
-        batched_labels = torch.tensor(labels)
-        return batched_graph, batched_labels
+        # 处理普通格式 (graph, labels) 和微调格式 (graph, labels, missing_modalities)
+        if len(samples[0]) == 2:
+            # 普通格式
+            graphs, labels = map(list, zip(*samples))
+            batched_graph = dgl.batch(graphs)
+            batched_labels = torch.tensor(labels)
+            return batched_graph, batched_labels
+        else:
+            # 微调格式，包含缺失模态信息
+            graphs, labels, missing_info = map(list, zip(*samples))
+            batched_graph = dgl.batch(graphs)
+            batched_labels = torch.tensor(labels)
+            # 将缺失模态信息作为额外返回值
+            return batched_graph, batched_labels, missing_info
     
     def evaluate_with_missing_modalities(self, test_data, missing_modalities=None, model=None):
         """
@@ -404,5 +421,196 @@ class TVDiagEadro(object):
         self.logger.info(f"{missing_str} The average test time is {np.mean(inference_times):.4f}[s]")
         
         return rcl_res, fti_res, np.mean(inference_times)
+
+    def _knn_finetune(self, model, train_data, val_data):
+        """k-NN微调训练主流程"""
+        
+        # 1. 构造微调数据集
+        finetune_data = self._create_finetune_dataset(train_data)
+        
+        # 2. 设置k-NN填补器
+        model.setup_knn_imputer(self.logger)
+        
+        # 3. 冻结指定参数
+        self._freeze_parameters(model)
+        
+        # 4. 创建微调优化器
+        finetune_lr = self.config.lr * self.config.finetune_lr_ratio
+        finetune_optimizer = torch.optim.Adam(
+            filter(lambda p: p.requires_grad, model.parameters()),
+            lr=finetune_lr,
+            weight_decay=self.config.weight_decay
+        )
+        
+        # 5. 创建数据加载器
+        finetune_dl = DataLoader(finetune_data, batch_size=self.config.batch_size, shuffle=True, collate_fn=self.collate)
+        
+        # 6. 微调训练循环
+        self._finetune_training_loop(model, finetune_dl, val_data, finetune_optimizer)
+        
+        self.logger.info("k-NN微调训练完成")
+
+    def _create_finetune_dataset(self, train_data):
+        """构造微调数据集: 50%原始 + 50%模拟缺失"""
+        import random
+        import copy
+        
+        self.logger.info("构造k-NN微调数据集...")
+        
+        # 随机打乱并划分
+        shuffled_data = list(train_data)
+        random.shuffle(shuffled_data)
+        mid_point = len(shuffled_data) // 2
+        
+        # 50% 原始完整数据
+        complete_data = shuffled_data[:mid_point]
+        
+        # 50% 模拟缺失数据，平均分配给三种模态
+        incomplete_data = shuffled_data[mid_point:]
+        modalities = ['metric', 'log', 'trace']
+        num_per_modality = len(incomplete_data) // 3
+        
+        knn_augmented_data = []
+        
+        for i, modality in enumerate(modalities):
+            start_idx = i * num_per_modality
+            end_idx = (i + 1) * num_per_modality if i < 2 else len(incomplete_data)
+            
+            modality_data = incomplete_data[start_idx:end_idx]
+            
+            for sample in modality_data:
+                # 创建带缺失标记的样本
+                augmented_sample = copy.deepcopy(sample)
+                # 为样本添加缺失模态信息（通过添加属性）
+                if not hasattr(augmented_sample, 'missing_modalities'):
+                    augmented_sample = (augmented_sample[0], augmented_sample[1], [modality])
+                else:
+                    # 如果已经是三元组，修改第三个元素
+                    augmented_sample = (augmented_sample[0], augmented_sample[1], [modality])
+                knn_augmented_data.append(augmented_sample)
+        
+        # 为完整数据添加空缺失列表
+        complete_data_with_missing = []
+        for sample in complete_data:
+            if len(sample) == 2:  # 原始格式
+                complete_data_with_missing.append((sample[0], sample[1], []))
+            else:
+                complete_data_with_missing.append(sample)
+        
+        # 合并数据集
+        finetune_dataset = complete_data_with_missing + knn_augmented_data
+        random.shuffle(finetune_dataset)
+        
+        self.logger.info(f"微调数据集构成:")
+        self.logger.info(f"  - 完整数据: {len(complete_data)} 样本")
+        self.logger.info(f"  - k-NN补全数据: {len(knn_augmented_data)} 样本")
+        self.logger.info(f"    - 缺失metric: {len([x for x in knn_augmented_data if 'metric' in x[2]])} 样本")
+        self.logger.info(f"    - 缺失log: {len([x for x in knn_augmented_data if 'log' in x[2]])} 样本")
+        self.logger.info(f"    - 缺失trace: {len([x for x in knn_augmented_data if 'trace' in x[2]])} 样本")
+        self.logger.info(f"  - 总计: {len(finetune_dataset)} 样本")
+        
+        return finetune_dataset
+
+    def _freeze_parameters(self, model):
+        """冻结指定的模型参数"""
+        
+        frozen_params = 0
+        total_params = 0
+        
+        # 冻结Eadro编码器
+        if self.config.freeze_eadro_encoder:
+            for param in model.eadro_encoder.parameters():
+                param.requires_grad = False
+                frozen_params += param.numel()
+            self.logger.info("已冻结 eadro_encoder 参数")
+        
+        # 统计参数数量
+        for param in model.parameters():
+            total_params += param.numel()
+        
+        trainable_params = total_params - frozen_params
+        
+        self.logger.info(f"参数冻结统计:")
+        self.logger.info(f"  - 总参数: {total_params:,}")
+        self.logger.info(f"  - 冻结参数: {frozen_params:,}")
+        self.logger.info(f"  - 可训练参数: {trainable_params:,}")
+        self.logger.info(f"  - 可训练比例: {trainable_params/total_params:.1%}")
+
+    def _finetune_training_loop(self, model, finetune_dl, val_data, optimizer):
+        """微调训练循环"""
+        import torch.nn.functional as F
+        
+        # 早停策略
+        early_stop = EarlyStopping(patience=self.config.finetune_patience)
+        
+        # 保存路径
+        finetune_model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_finetuned.pt')
+        
+        model.train()
+        
+        for epoch in range(self.config.finetune_epochs):
+            epoch_loss = 0.0
+            batch_count = 0
+            
+            for batch_data in finetune_dl:
+                # 处理batch数据格式
+                if len(batch_data) == 3:  # 包含缺失模态信息
+                    batch_graphs, batch_labels, missing_modalities_batch = batch_data
+                    missing_modalities = missing_modalities_batch[0] if missing_modalities_batch[0] else None
+                else:
+                    batch_graphs, batch_labels = batch_data
+                    missing_modalities = None
+                
+                batch_graphs = batch_graphs.to(self.device)
+                instance_labels = batch_labels[:, 0].to(self.device)
+                type_labels = batch_labels[:, 1].to(self.device)
+                
+                optimizer.zero_grad()
+                
+                fs, es, root_logit, type_logit = model(batch_graphs, missing_modalities)
+                
+                # 计算损失
+                l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
+                l_fti = F.cross_entropy(type_logit, type_labels)
+                
+                if self.config.dynamic_weight:
+                    # 这里简化处理，直接相加
+                    total_loss = l_rcl + l_fti
+                else:
+                    total_loss = l_rcl + l_fti
+                
+                total_loss.backward()
+                optimizer.step()
+                
+                epoch_loss += total_loss.detach().item()
+                batch_count += 1
+            
+            avg_loss = epoch_loss / batch_count
+            
+            # 验证
+            val_loss, val_rcl, val_fti = self._validate(model, val_data)
+            
+            self.logger.info(f"微调 Epoch {epoch+1}/{self.config.finetune_epochs}: "
+                           f"Train Loss: {avg_loss:.3f}, Val Loss: {val_loss:.3f}, "
+                           f"Val HR@3: {val_rcl['HR@3']:.3%}, Val F1: {val_fti['f1']:.3%}")
+            
+            # 早停判断
+            stop, is_best = early_stop.should_stop(val_loss, epoch)
+            
+            if is_best:
+                # 保存微调后的最优模型
+                state = {
+                    'epoch': epoch,
+                    'model': model.state_dict(),
+                    'opt': optimizer.state_dict(),
+                    'val_loss': val_loss,
+                    'is_finetuned': True
+                }
+                torch.save(state, finetune_model_path)
+                self.logger.info(f"✓ 微调最优模型保存于 epoch {epoch+1}")
+            
+            if stop:
+                self.logger.info(f"微调在 epoch {epoch+1} 提前停止")
+                break
 
 

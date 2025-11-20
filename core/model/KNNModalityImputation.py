@@ -118,19 +118,22 @@ class KNNModalityImputation:
         Returns:
             similarities: [num_samples] 相似度分数  
         """
-        # 展平
-        query_flat = query_emb.flatten()  # [num_services * 128]
-        db_flat = db_embs.flatten(1)      # [num_samples, num_services * 128]
+        # 使用平均池化处理不同大小的图，避免形状不匹配
+        # 查询图聚合: [num_services, 128] -> [128]
+        query_pooled = torch.mean(query_emb, dim=0)  # [128]
+        
+        # 数据库图聚合: [num_samples, num_services, 128] -> [num_samples, 128]
+        db_pooled = torch.mean(db_embs, dim=1)  # [num_samples, 128]
         
         if self.similarity_metric == 'cosine':
             # 余弦相似度
-            query_norm = F.normalize(query_flat.unsqueeze(0), p=2, dim=1)
-            db_norm = F.normalize(db_flat, p=2, dim=1)
-            similarities = torch.mm(query_norm, db_norm.t()).squeeze()
+            query_norm = F.normalize(query_pooled.unsqueeze(0), p=2, dim=1)  # [1, 128]
+            db_norm = F.normalize(db_pooled, p=2, dim=1)  # [num_samples, 128]
+            similarities = torch.mm(query_norm, db_norm.t()).squeeze()  # [num_samples]
             
         elif self.similarity_metric == 'euclidean':
             # 欧氏距离转相似度
-            distances = torch.norm(db_flat - query_flat.unsqueeze(0), p=2, dim=1)
+            distances = torch.norm(db_pooled - query_pooled.unsqueeze(0), p=2, dim=1)  # [num_samples]
             similarities = 1.0 / (1.0 + distances)
         
         else:
@@ -218,13 +221,19 @@ class KNNModalityImputation:
         # 填补每个缺失模态
         for missing_mod in missing_modalities:
             # 获取top-k样本的嵌入
-            top_k_embs = self.vector_db[missing_mod][top_k_indices]  # [k, num_services, 128]
+            top_k_embs = self.vector_db[missing_mod][top_k_indices]  # [k, db_num_services, 128]
             
-            # 基于相似度加权平均
+            # 基于相似度加权平均得到图级表示
             weights = F.softmax(similarities, dim=0)  # [k]
-            weights = weights.view(-1, 1, 1)  # [k, 1, 1] 用于广播
             
-            imputed_emb = (top_k_embs * weights).sum(dim=0)  # [num_services, 128]
+            # 先对每个样本进行图级聚合，再加权平均
+            top_k_graph_level = torch.mean(top_k_embs, dim=1)  # [k, 128] 
+            weighted_graph_repr = (top_k_graph_level * weights.unsqueeze(1)).sum(dim=0)  # [128]
+            
+            # 获取查询图的节点数，扩展图级表示到节点级
+            query_num_nodes = list(modal_embeddings.values())[0].size(0)  # 查询图的节点数
+            imputed_emb = weighted_graph_repr.unsqueeze(0).expand(query_num_nodes, -1)  # [query_num_nodes, 128]
+            
             completed_embeddings[missing_mod] = imputed_emb
         
         return completed_embeddings
