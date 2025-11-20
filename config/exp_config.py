@@ -13,13 +13,19 @@ class Config:
         self.use_partial_modalities = False  # 是否启用部分模态功能
         # self.training_modalities = ['metric', 'trace', 'log']  # 训练时使用的模态
         # self.testing_modalities = ['metric', 'trace', 'log']   # 测试时使用的模态
-        # self.training_modalities = ['trace', 'log']  # 训练时使用的模态
-        # self.testing_modalities = ['trace', 'log']   # 测试时使用的模态
+        self.training_modalities = ['trace', 'log']  # 训练时使用的模态
+        self.testing_modalities = ['trace', 'log']   # 测试时使用的模态
         # self.training_modalities = ['metric', 'log']  # 训练时使用的模态
         # self.testing_modalities = ['metric', 'log']   # 测试时使用的模态
-        self.training_modalities = ['metric', 'trace']  # 训练时使用的模态
-        self.testing_modalities = ['metric', 'trace']   # 测试时使用的模态
-        
+        # self.training_modalities = ['metric', 'trace']  # 训练时使用的模态
+        # self.testing_modalities = ['metric', 'trace']   # 测试时使用的模态
+        # self.training_modalities = ['metric']  # 训练时使用的模态
+        # self.testing_modalities = ['metric']   # 测试时使用的模态
+        # self.training_modalities = ['trace']  # 训练时使用的模态
+        # self.testing_modalities = ['trace']   # 测试时使用的模态
+        # self.training_modalities = ['log']  # 训练时使用的模态
+        # self.testing_modalities = ['log']   # 测试时使用的模态
+
         # alert config
         self.metric_direction = True
         self.trace_op = True
