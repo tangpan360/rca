@@ -112,25 +112,26 @@ class TaskSpecificModalAttention(nn.Module):
 
 class AdaptiveModalFusion(nn.Module):
     """
-    公平对比的多模态融合模块
-    uniform vs adaptive: 统一权重 vs 自适应权重，输出相同维度确保公平对比
+    简化的多模态融合模块 - 三种融合策略，统一32维输出
     """
-    def __init__(self, modal_dim, num_heads=4, dropout=0.1, fusion_mode="adaptive", max_modalities=3):
+    def __init__(self, modal_dim, num_heads=4, dropout=0.1, fusion_mode="uniform", max_modalities=3):
         super(AdaptiveModalFusion, self).__init__()
         
-        self.fusion_mode = fusion_mode  # "uniform" 或 "adaptive"
+        self.fusion_mode = fusion_mode  # "average", "uniform", 或 "adaptive"
         self.modal_dim = modal_dim
         self.max_modalities = max_modalities
         
-        if fusion_mode == "uniform":
-            # 统一权重融合 - 简单平均作为baseline
-            # 所有模态使用相等权重，但允许任务间有不同的固定权重
+        if fusion_mode == "average":
+            # 简单平均融合 - 最简单的baseline，无需参数
+            pass
+            
+        elif fusion_mode == "uniform":
+            # 可学习固定权重融合
             self.fti_uniform_weights = nn.Parameter(torch.ones(max_modalities) / max_modalities)
             self.rcl_uniform_weights = nn.Parameter(torch.ones(max_modalities) / max_modalities)
             
         elif fusion_mode == "adaptive":
             # 自适应权重融合 - 任务特定的注意力机制
-            # FTI任务的注意力（关注全局故障模式）
             self.fti_attention = TaskSpecificModalAttention(
                 modal_dim=modal_dim,
                 num_heads=num_heads,
@@ -138,7 +139,6 @@ class AdaptiveModalFusion(nn.Module):
                 task_type="fti"
             )
             
-            # RCL任务的注意力（关注局部异常信号）
             self.rcl_attention = TaskSpecificModalAttention(
                 modal_dim=modal_dim,
                 num_heads=num_heads,
@@ -166,36 +166,33 @@ class AdaptiveModalFusion(nn.Module):
         f_stack = torch.stack([modal_fs[mod] for mod in used_modalities], dim=1)  # [B, M, D]
         e_stack = torch.stack([modal_es[mod] for mod in used_modalities], dim=1)  # [N, M, D]
         
-        if self.fusion_mode == "uniform":
-            # 统一权重融合 (Baseline)
-            # 使用固定权重进行加权平均
+        if self.fusion_mode == "average":
+            # 简单平均融合 - 最简单的baseline
+            f_fused = f_stack.mean(dim=1)  # [B, D]
+            e_fused = e_stack.mean(dim=1)  # [N, D]
+            fusion_info['fusion_type'] = 'simple_average'
             
-            # 获取当前使用模态的权重
+        elif self.fusion_mode == "uniform":
+            # 可学习固定权重融合
             num_used = len(used_modalities)
             fti_weights = F.softmax(self.fti_uniform_weights[:num_used], dim=0)  # [M]
             rcl_weights = F.softmax(self.rcl_uniform_weights[:num_used], dim=0)  # [M]
             
-            # 加权平均融合
             f_fused = torch.sum(f_stack * fti_weights.view(1, -1, 1), dim=1)  # [B, D]
             e_fused = torch.sum(e_stack * rcl_weights.view(1, -1, 1), dim=1)  # [N, D]
             
-            # 存储权重信息
             fusion_info['fti_weights'] = fti_weights
             fusion_info['rcl_weights'] = rcl_weights
             fusion_info['fusion_type'] = 'uniform_weighted_average'
             
         elif self.fusion_mode == "adaptive":
-            # 自适应权重融合 (Proposed)
-            
-            # 步骤2: 生成任务特定的上下文
+            # 自适应权重融合
             f_context = f_stack.mean(dim=1)  # [B, D] - 全局上下文
             e_context = e_stack.mean(dim=1)  # [N, D] - 局部上下文
             
-            # 步骤3: 任务特定的自适应注意力融合
             f_fused, fti_attn = self.fti_attention(f_stack, f_context)  # [B, D]
             e_fused, rcl_attn = self.rcl_attention(e_stack, e_context)  # [N, D]
             
-            # 存储注意力信息
             fusion_info['fti_attention'] = fti_attn
             fusion_info['rcl_attention'] = rcl_attn  
             fusion_info['fusion_type'] = 'adaptive_attention'

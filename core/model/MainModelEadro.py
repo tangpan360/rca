@@ -68,58 +68,37 @@ class MainModelEadro(nn.Module):
                     out_dim=1
                 )
         else:
-            # 原来的固定三模态融合 - 更新为32维输出适配
-            if hasattr(config, 'use_adaptive_fusion') and config.use_adaptive_fusion:
-                # 如果启用了新融合但没有自适应融合对象，使用32维分类器
-                fusion_dim = config.graph_out  # 32维
-            else:
-                # 传统concatenation模式
-                fusion_dim = len(config.modalities) * config.graph_out  # 96维
-
+            # 传统固定三模态融合 - 统一使用32维输出
+            fusion_dim = config.graph_out  # 32维统一输出
+            
             self.locator = Voter(fusion_dim,
-                                 hiddens=config.linear_hidden,
+                                 hiddens=config.linear_hidden, 
                                  out_dim=1)
             self.typeClassifier = Classifier(in_dim=fusion_dim,
                                            hiddens=config.linear_hidden,
                                            out_dim=config.ft_num)
         
-        # 自适应模态融合模块
-        if hasattr(config, 'use_adaptive_fusion') and config.use_adaptive_fusion:
-            self.adaptive_fusion = AdaptiveModalFusion(
-                modal_dim=config.graph_out,
-                num_heads=getattr(config, 'attention_heads', 4),
-                dropout=getattr(config, 'attention_dropout', 0.1),
-                fusion_mode=getattr(config, 'fusion_mode', 'adaptive'),  # 默认adaptive
-                max_modalities=len(config.modalities)
+        # 简化的模态融合模块 - 三种模式统一32维输出
+        self.adaptive_fusion = AdaptiveModalFusion(
+            modal_dim=config.graph_out,
+            num_heads=getattr(config, 'attention_heads', 4),
+            dropout=getattr(config, 'attention_dropout', 0.1),
+            fusion_mode=config.fusion_mode,  # "average", "uniform", 或 "adaptive"
+            max_modalities=len(config.modalities)
+        )
+        
+        # 统一的分类器 - 32维输出
+        if not config.use_partial_modalities:
+            self.adaptive_typeClassifier = Classifier(
+                in_dim=config.graph_out,
+                hiddens=config.linear_hidden,
+                out_dim=config.ft_num
             )
-            
-            # 新架构：uniform vs adaptive融合，统一32维输出确保公平对比
-            fusion_output_dim = config.graph_out  # 统一使用32维输出
-            
-            # 所有融合模式使用相同维度的分类器
-            if not config.use_partial_modalities:
-                self.adaptive_typeClassifier = Classifier(
-                    in_dim=fusion_output_dim,
-                    hiddens=config.linear_hidden,
-                    out_dim=config.ft_num
-                )
-                self.adaptive_locator = Voter(
-                    fusion_output_dim,
-                    hiddens=config.linear_hidden,
-                    out_dim=1
-                )
-        else:
-            self.adaptive_fusion = None
-            
-        # 为传统concatenation模式添加投影层(如果需要)
-        # 这个逻辑放在adaptive_fusion创建之后
-        if (hasattr(config, 'use_adaptive_fusion') and config.use_adaptive_fusion and 
-            self.adaptive_fusion is None):
-            # 启用了融合但没有adaptive_fusion对象时，添加投影层
-            concat_dim = len(config.modalities) * config.graph_out  # 96维
-            target_dim = config.graph_out  # 32维
-            self.concat_proj_f = nn.Linear(concat_dim, target_dim)
-            self.concat_proj_e = nn.Linear(concat_dim, target_dim)
+            self.adaptive_locator = Voter(
+                config.graph_out,
+                hiddens=config.linear_hidden,
+                out_dim=1
+            )
 
     def forward(self, batch_graphs, active_modalities=None):
         # 确定使用的模态
@@ -153,48 +132,9 @@ class MainModelEadro(nn.Module):
                 fs[modality] = f_d
                 es[modality] = e_d
 
-        # 步骤3: 多模态融合 (新版本: 统一32维输出)
-        fusion_info = {}
-        
-        if self.adaptive_fusion is not None and self.config.use_adaptive_fusion:
-            # 使用新的融合策略: uniform vs adaptive
-            f, e, fusion_info = self.adaptive_fusion(fs, es, used_modalities)
-            # 输出: f[B, 32], e[N, 32]
-            
-        else:
-            # 传统方式或禁用自适应融合时的处理
-            if hasattr(self.config, 'use_adaptive_fusion') and self.config.use_adaptive_fusion:
-                # 启用了新融合但没有adaptive_fusion对象：使用简单平均
-                f_stack = torch.stack([fs[mod] for mod in used_modalities], dim=1)
-                e_stack = torch.stack([es[mod] for mod in used_modalities], dim=1)
-                f = f_stack.mean(dim=1)  # [B, 32] - 简单平均
-                e = e_stack.mean(dim=1)  # [N, 32] - 简单平均
-                fusion_info['fusion_type'] = 'simple_average'
-                
-            else:
-                # 完全传统的concatenation模式
-                max_modalities = len(self.config.modalities)
-                used_f = [fs[mod] for mod in used_modalities]
-                used_e = [es[mod] for mod in used_modalities]
-                
-                # 填充缺失模态
-                while len(used_f) < max_modalities:
-                    device = used_f[0].device
-                    dtype = used_f[0].dtype
-                    zero_f = torch.zeros(used_f[0].shape[0], used_f[0].shape[1], device=device, dtype=dtype)
-                    zero_e = torch.zeros(used_e[0].shape[0], used_e[0].shape[1], device=device, dtype=dtype)
-                    used_f.append(zero_f)
-                    used_e.append(zero_e)
-                
-                f = torch.cat(used_f, dim=1)  # [B, 96]
-                e = torch.cat(used_e, dim=1)  # [N, 96]
-                
-                # 如果有投影层，投影到32维
-                if hasattr(self, 'concat_proj_f'):
-                    f = self.concat_proj_f(f)  # [B, 96] -> [B, 32]
-                    e = self.concat_proj_e(e)  # [N, 96] -> [N, 32]
-                
-                fusion_info['fusion_type'] = 'traditional_concat'
+        # 步骤3: 多模态融合 (简化版本: 统一32维输出)
+        f, e, fusion_info = self.adaptive_fusion(fs, es, used_modalities)
+        # 输出: f[B, 32], e[N, 32]
 
         # 步骤4: 故障诊断（动态选择分类器）
         if self.config.use_partial_modalities:
@@ -209,14 +149,12 @@ class MainModelEadro(nn.Module):
                 type_logit = self.adaptive_classifiers[first_key](f)
                 root_logit = self.adaptive_locators[first_key](e)
         else:
-            # 选择分类器：优先使用自适应分类器
-            if (self.adaptive_fusion is not None and 
-                hasattr(self, 'adaptive_typeClassifier') and 
-                self.config.use_adaptive_fusion):
+            # 统一使用adaptive分类器（32维输入）
+            if hasattr(self, 'adaptive_typeClassifier'):
                 type_logit = self.adaptive_typeClassifier(f)  # 故障类型识别
                 root_logit = self.adaptive_locator(e)  # 根因定位
             else:
-                # 使用原来的固定分类器
+                # 回退到传统分类器
                 type_logit = self.typeClassifier(f)  # 故障类型识别
                 root_logit = self.locator(e)  # 根因定位
 
@@ -254,16 +192,8 @@ class MainModelEadro(nn.Module):
         return attention_info
     
     def get_fusion_mode(self):
-        """
-        获取当前使用的融合模式
-        
-        Returns:
-            str: 融合模式 ('concat', 'attention')
-        """
-        if self.adaptive_fusion is not None:
-            return self.adaptive_fusion.fusion_mode
-        else:
-            return 'concat'
+        """获取当前的融合模式"""
+        return self.adaptive_fusion.fusion_mode
     
     def get_modal_importance_analysis(self, used_modalities):
         """
