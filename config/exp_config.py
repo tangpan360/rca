@@ -55,7 +55,7 @@ class Config:
         self.weight_decay = 0.0001
         
         # 模态融合配置 (简化版本 - 统一32维输出)
-        self.fusion_mode = "adaptive"       # 融合模式: "average" | "uniform" | "adaptive"
+        self.fusion_mode = "adaptive"       # 融合模式: "average" | "adaptive"
         self.attention_heads = 4            # 注意力头数
         self.attention_dropout = 0.1        # 注意力dropout率        
 

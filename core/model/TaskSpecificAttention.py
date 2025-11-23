@@ -112,23 +112,18 @@ class TaskSpecificModalAttention(nn.Module):
 
 class AdaptiveModalFusion(nn.Module):
     """
-    简化的多模态融合模块 - 三种融合策略，统一32维输出
+    简化的多模态融合模块 - 两种融合策略，统一32维输出
     """
-    def __init__(self, modal_dim, num_heads=4, dropout=0.1, fusion_mode="uniform", max_modalities=3):
+    def __init__(self, modal_dim, num_heads=4, dropout=0.1, fusion_mode="adaptive", max_modalities=3):
         super(AdaptiveModalFusion, self).__init__()
         
-        self.fusion_mode = fusion_mode  # "average", "uniform", 或 "adaptive"
+        self.fusion_mode = fusion_mode  # "average" 或 "adaptive"
         self.modal_dim = modal_dim
         self.max_modalities = max_modalities
         
         if fusion_mode == "average":
-            # 简单平均融合 - 最简单的baseline，无需参数
+            # 简单平均融合
             pass
-            
-        elif fusion_mode == "uniform":
-            # 可学习固定权重融合
-            self.fti_uniform_weights = nn.Parameter(torch.ones(max_modalities) / max_modalities)
-            self.rcl_uniform_weights = nn.Parameter(torch.ones(max_modalities) / max_modalities)
             
         elif fusion_mode == "adaptive":
             # 自适应权重融合 - 任务特定的注意力机制
@@ -145,6 +140,8 @@ class AdaptiveModalFusion(nn.Module):
                 dropout=dropout,
                 task_type="rcl"
             )
+        else:
+            raise ValueError(f"Unsupported fusion_mode: {fusion_mode}. Use 'average' or 'adaptive'.")
     
     def forward(self, modal_fs, modal_es, used_modalities):
         """
@@ -167,23 +164,10 @@ class AdaptiveModalFusion(nn.Module):
         e_stack = torch.stack([modal_es[mod] for mod in used_modalities], dim=1)  # [N, M, D]
         
         if self.fusion_mode == "average":
-            # 简单平均融合 - 最简单的baseline
+            # 简单平均融合
             f_fused = f_stack.mean(dim=1)  # [B, D]
             e_fused = e_stack.mean(dim=1)  # [N, D]
             fusion_info['fusion_type'] = 'simple_average'
-            
-        elif self.fusion_mode == "uniform":
-            # 可学习固定权重融合
-            num_used = len(used_modalities)
-            fti_weights = F.softmax(self.fti_uniform_weights[:num_used], dim=0)  # [M]
-            rcl_weights = F.softmax(self.rcl_uniform_weights[:num_used], dim=0)  # [M]
-            
-            f_fused = torch.sum(f_stack * fti_weights.view(1, -1, 1), dim=1)  # [B, D]
-            e_fused = torch.sum(e_stack * rcl_weights.view(1, -1, 1), dim=1)  # [N, D]
-            
-            fusion_info['fti_weights'] = fti_weights
-            fusion_info['rcl_weights'] = rcl_weights
-            fusion_info['fusion_type'] = 'uniform_weighted_average'
             
         elif self.fusion_mode == "adaptive":
             # 自适应权重融合
@@ -198,7 +182,7 @@ class AdaptiveModalFusion(nn.Module):
             fusion_info['fusion_type'] = 'adaptive_attention'
             
         else:
-            raise ValueError(f"Unsupported fusion_mode: {self.fusion_mode}")
+            raise ValueError(f"Unsupported fusion_mode: {self.fusion_mode}. Use 'average' or 'adaptive'.")
         
         # 两种模式都输出相同维度: [B, D] 和 [N, D]
         return f_fused, e_fused, fusion_info
