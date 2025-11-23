@@ -53,6 +53,17 @@ class Config:
         self.linear_hidden = [64]
         self.lr = 0.001
         self.weight_decay = 0.0001
+        
+        # 模态融合配置 (公平对比版本)
+        self.use_adaptive_fusion = True    # 是否使用自适应模态融合
+        self.fusion_mode = "adaptive"      # 融合模式: "uniform" 或 "adaptive"
+        self.attention_heads = 4           # 注意力头数
+        self.attention_dropout = 0.1       # 注意力dropout率
+        
+        # 实验对比配置说明:
+        # "uniform":   统一权重融合 - 所有模态使用相等权重 (Baseline)
+        # "adaptive":  自适应权重融合 - 任务特定的注意力权重 (Proposed)
+        # 两种模式输出相同维度(32维)，确保公平对比
 
         if self.dataset == 'gaia':
             self.feat_drop = 0
