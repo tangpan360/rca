@@ -56,5 +56,3 @@ if __name__ == '__main__':
     config = Config(dataset)
     train_and_evaluate(config, f'./logs/{dataset}', f'{dataset}_eadro')
 
-
-

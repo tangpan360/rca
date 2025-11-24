@@ -43,48 +43,17 @@ class MainModelEadro(nn.Module):
             max_modalities=len(config.modalities)
         )
         
-        # 分类器配置：根据是否使用部分模态选择不同策略
-        if config.use_partial_modalities:
-            # 部分模态模式：为每种模态组合创建专用分类器
-            self.adaptive_classifiers = nn.ModuleDict()
-            self.adaptive_locators = nn.ModuleDict()
-            
-            # 预创建常用的模态组合
-            common_combinations = [
-                ['metric'],
-                ['log'], 
-                ['trace'],
-                ['metric', 'log'],
-                ['metric', 'trace'],
-                ['log', 'trace'],
-                ['metric', 'log', 'trace']
-            ]
-            
-            for combination in common_combinations:
-                combo_key = '_'.join(sorted(combination))
-                
-                self.adaptive_classifiers[combo_key] = Classifier(
-                    in_dim=config.graph_out,
-                    hiddens=config.linear_hidden,
-                    out_dim=config.ft_num
-                )
-                self.adaptive_locators[combo_key] = Voter(
-                    config.graph_out,
-                    hiddens=config.linear_hidden,
-                    out_dim=1
-                )
-        else:
-            # 固定模态模式：使用统一分类器
-            self.adaptive_typeClassifier = Classifier(
-                in_dim=config.graph_out,
-                hiddens=config.linear_hidden,
-                out_dim=config.ft_num
-            )
-            self.adaptive_locator = Voter(
-                config.graph_out,
-                hiddens=config.linear_hidden,
-                out_dim=1
-            )
+        # 统一分类器：由于融合后所有模态组合都输出32维，使用统一分类器
+        self.typeClassifier = Classifier(
+            in_dim=config.graph_out,
+            hiddens=config.linear_hidden,
+            out_dim=config.ft_num
+        )
+        self.locator = Voter(
+            config.graph_out,
+            hiddens=config.linear_hidden,
+            out_dim=1
+        )
 
     def forward(self, batch_graphs, active_modalities=None):
         # 确定使用的模态
@@ -118,26 +87,13 @@ class MainModelEadro(nn.Module):
                 fs[modality] = f_d
                 es[modality] = e_d
 
-        # 步骤3: 多模态融合 (简化版本: 统一32维输出)
+        # 步骤3: 多模态融合
         f, e, fusion_info = self.adaptive_fusion(fs, es, used_modalities)
         # 输出: f[B, 32], e[N, 32]
 
-        # 步骤4: 故障诊断（动态选择分类器）
-        if self.config.use_partial_modalities:
-            combo_key = '_'.join(sorted(used_modalities))
-            
-            if combo_key in self.adaptive_classifiers:
-                type_logit = self.adaptive_classifiers[combo_key](f)
-                root_logit = self.adaptive_locators[combo_key](e)
-            else:
-                # 如果没有预定义的组合，使用第一个可用的
-                first_key = list(self.adaptive_classifiers.keys())[0]
-                type_logit = self.adaptive_classifiers[first_key](f)
-                root_logit = self.adaptive_locators[first_key](e)
-        else:
-            # 固定模态模式：使用统一分类器
-            type_logit = self.adaptive_typeClassifier(f)  # 故障类型识别
-            root_logit = self.adaptive_locator(e)  # 根因定位
+        # 步骤4: 故障诊断
+        type_logit = self.typeClassifier(f)  # 故障类型识别
+        root_logit = self.locator(e)  # 根因定位
 
         # 存储融合信息用于分析
         self._last_fusion_info = fusion_info
