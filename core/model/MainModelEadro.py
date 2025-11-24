@@ -34,9 +34,18 @@ class MainModelEadro(nn.Module):
                 feat_drop=config.feat_drop
             )
 
-        # 支持动态模态组合的融合层
+        # 简化的模态融合模块
+        self.adaptive_fusion = AdaptiveModalFusion(
+            modal_dim=config.graph_out,
+            num_heads=getattr(config, 'attention_heads', 4),
+            dropout=getattr(config, 'attention_dropout', 0.1),
+            fusion_mode=config.fusion_mode,
+            max_modalities=len(config.modalities)
+        )
+        
+        # 分类器配置：根据是否使用部分模态选择不同策略
         if config.use_partial_modalities:
-            # 为所有可能的模态组合创建分类器
+            # 部分模态模式：为每种模态组合创建专用分类器
             self.adaptive_classifiers = nn.ModuleDict()
             self.adaptive_locators = nn.ModuleDict()
             
@@ -54,41 +63,18 @@ class MainModelEadro(nn.Module):
             for combination in common_combinations:
                 combo_key = '_'.join(sorted(combination))
                 
-                # 新架构：所有模态组合都使用相同的32维输出
-                fusion_output_dim = config.graph_out  # 32维统一输出
-                
                 self.adaptive_classifiers[combo_key] = Classifier(
-                    in_dim=fusion_output_dim,
+                    in_dim=config.graph_out,
                     hiddens=config.linear_hidden,
                     out_dim=config.ft_num
                 )
                 self.adaptive_locators[combo_key] = Voter(
-                    fusion_output_dim,
+                    config.graph_out,
                     hiddens=config.linear_hidden,
                     out_dim=1
                 )
         else:
-            # 传统固定三模态融合 - 统一使用32维输出
-            fusion_dim = config.graph_out  # 32维统一输出
-            
-            self.locator = Voter(fusion_dim,
-                                 hiddens=config.linear_hidden, 
-                                 out_dim=1)
-            self.typeClassifier = Classifier(in_dim=fusion_dim,
-                                           hiddens=config.linear_hidden,
-                                           out_dim=config.ft_num)
-        
-        # 简化的模态融合模块 - 三种模式统一32维输出
-        self.adaptive_fusion = AdaptiveModalFusion(
-            modal_dim=config.graph_out,
-            num_heads=getattr(config, 'attention_heads', 4),
-            dropout=getattr(config, 'attention_dropout', 0.1),
-            fusion_mode=config.fusion_mode,  # "average", "uniform", 或 "adaptive"
-            max_modalities=len(config.modalities)
-        )
-        
-        # 统一的分类器 - 32维输出
-        if not config.use_partial_modalities:
+            # 固定模态模式：使用统一分类器
             self.adaptive_typeClassifier = Classifier(
                 in_dim=config.graph_out,
                 hiddens=config.linear_hidden,
@@ -149,14 +135,9 @@ class MainModelEadro(nn.Module):
                 type_logit = self.adaptive_classifiers[first_key](f)
                 root_logit = self.adaptive_locators[first_key](e)
         else:
-            # 统一使用adaptive分类器（32维输入）
-            if hasattr(self, 'adaptive_typeClassifier'):
-                type_logit = self.adaptive_typeClassifier(f)  # 故障类型识别
-                root_logit = self.adaptive_locator(e)  # 根因定位
-            else:
-                # 回退到传统分类器
-                type_logit = self.typeClassifier(f)  # 故障类型识别
-                root_logit = self.locator(e)  # 根因定位
+            # 固定模态模式：使用统一分类器
+            type_logit = self.adaptive_typeClassifier(f)  # 故障类型识别
+            root_logit = self.adaptive_locator(e)  # 根因定位
 
         # 存储融合信息用于分析
         self._last_fusion_info = fusion_info
