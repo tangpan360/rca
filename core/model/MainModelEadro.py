@@ -33,14 +33,15 @@ class MainModelEadro(nn.Module):
                 feat_drop=config.feat_drop
             )
         
-        # 统一分类器：由于融合后所有模态组合都输出32维，使用统一分类器
+        # 分类器：拼接融合后维度为 num_modalities * graph_out
+        fused_dim = len(config.modalities) * config.graph_out
         self.typeClassifier = Classifier(
-            in_dim=config.graph_out,
+            in_dim=fused_dim,
             hiddens=config.linear_hidden,
             out_dim=config.ft_num
         )
         self.locator = Voter(
-            config.graph_out,
+            fused_dim,
             hiddens=config.linear_hidden,
             out_dim=1
         )
@@ -77,12 +78,9 @@ class MainModelEadro(nn.Module):
                 fs[modality] = f_d
                 es[modality] = e_d
 
-        # 步骤3: 多模态融合（简单平均）
-        f_stack = torch.stack([fs[mod] for mod in used_modalities], dim=1)  # [B, M, D]
-        e_stack = torch.stack([es[mod] for mod in used_modalities], dim=1)  # [N, M, D]
-        
-        f = f_stack.mean(dim=1)  # [B, D] - 图级特征平均融合
-        e = e_stack.mean(dim=1)  # [N, D] - 节点级特征平均融合
+        # 步骤3: 多模态融合（拼接）
+        f = torch.cat([fs[mod] for mod in used_modalities], dim=1)  # [B, M*D] - 图级特征拼接
+        e = torch.cat([es[mod] for mod in used_modalities], dim=1)  # [N, M*D] - 节点级特征拼接
 
         # 步骤4: 故障诊断
         type_logit = self.typeClassifier(f)  # 故障类型识别
