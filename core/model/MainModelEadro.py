@@ -6,7 +6,6 @@ from core.model.Classifier import Classifier
 from core.model.Voter import Voter
 from core.model.Encoder import Encoder
 from core.model.EadroEncoder import EadroModalEncoder
-from core.model.TaskSpecificAttention import AdaptiveModalFusion
 
 
 class MainModelEadro(nn.Module):
@@ -33,14 +32,6 @@ class MainModelEadro(nn.Module):
                 aggregator=config.aggregator,
                 feat_drop=config.feat_drop
             )
-
-        # 简化的模态融合模块
-        self.adaptive_fusion = AdaptiveModalFusion(
-            modal_dim=config.graph_out,
-            num_heads=getattr(config, 'attention_heads', 4),
-            dropout=getattr(config, 'attention_dropout', 0.1),
-            fusion_mode=config.fusion_mode
-        )
         
         # 统一分类器：由于融合后所有模态组合都输出32维，使用统一分类器
         self.typeClassifier = Classifier(
@@ -86,94 +77,17 @@ class MainModelEadro(nn.Module):
                 fs[modality] = f_d
                 es[modality] = e_d
 
-        # 步骤3: 多模态融合
-        f, e, fusion_info = self.adaptive_fusion(fs, es, used_modalities)
-        # 输出: f[B, 32], e[N, 32]
+        # 步骤3: 多模态融合（简单平均）
+        f_stack = torch.stack([fs[mod] for mod in used_modalities], dim=1)  # [B, M, D]
+        e_stack = torch.stack([es[mod] for mod in used_modalities], dim=1)  # [N, M, D]
+        
+        f = f_stack.mean(dim=1)  # [B, D] - 图级特征平均融合
+        e = e_stack.mean(dim=1)  # [N, D] - 节点级特征平均融合
 
         # 步骤4: 故障诊断
         type_logit = self.typeClassifier(f)  # 故障类型识别
         root_logit = self.locator(e)  # 根因定位
-
-        # 存储融合信息用于分析
-        self._last_fusion_info = fusion_info
         
         return fs, es, root_logit, type_logit
-    
-    def get_fusion_info(self):
-        """
-        获取最后一次前向传播的融合信息
-        用于模型分析和可视化
-        
-        Returns:
-            dict: 包含融合权重和注意力信息
-        """
-        return getattr(self, '_last_fusion_info', {})
-    
-    def get_attention_info(self):
-        """
-        获取注意力权重信息 (向后兼容)
-        
-        Returns:
-            dict: 包含FTI和RCL任务的注意力权重
-        """
-        fusion_info = self.get_fusion_info()
-        attention_info = {}
-        
-        # 从fusion_info中提取attention信息
-        if 'fti_attention' in fusion_info:
-            attention_info['fti_attention'] = fusion_info['fti_attention']
-        if 'rcl_attention' in fusion_info:
-            attention_info['rcl_attention'] = fusion_info['rcl_attention']
-            
-        return attention_info
-    
-    def get_fusion_mode(self):
-        """获取当前的融合模式"""
-        return self.adaptive_fusion.fusion_mode
-    
-    def get_modal_importance_analysis(self, used_modalities):
-        """
-        获取模态重要性分析结果
-        
-        Args:
-            used_modalities: list of modality names used in last forward pass
-            
-        Returns:
-            dict: 包含FTI和RCL任务的模态重要性分析
-        """
-        attention_info = getattr(self, '_last_attention_info', {})
-        
-        if not attention_info or self.adaptive_fusion is None:
-            return {'error': 'No attention information available'}
-        
-        analysis = {}
-        
-        # FTI任务的模态重要性
-        if 'fti_attention' in attention_info:
-            fti_importance = self.adaptive_fusion.get_modal_importance(
-                attention_info['fti_attention'], used_modalities
-            )
-            analysis['fti_modal_importance'] = fti_importance
-        
-        # RCL任务的模态重要性
-        if 'rcl_attention' in attention_info:
-            rcl_importance = self.adaptive_fusion.get_modal_importance(
-                attention_info['rcl_attention'], used_modalities
-            )
-            analysis['rcl_modal_importance'] = rcl_importance
-        
-        # 计算任务间的模态偏好差异
-        if 'fti_modal_importance' in analysis and 'rcl_modal_importance' in analysis:
-            fti_imp = analysis['fti_modal_importance']
-            rcl_imp = analysis['rcl_modal_importance']
-            
-            differences = {}
-            for modality in used_modalities:
-                if modality in fti_imp and modality in rcl_imp:
-                    differences[modality] = abs(fti_imp[modality] - rcl_imp[modality])
-            
-            analysis['task_preference_differences'] = differences
-        
-        return analysis
 
 

@@ -46,11 +46,6 @@ class Config:
         self.linear_hidden = [64]
         self.lr = 0.001
         self.weight_decay = 0.0001
-        
-        # 模态融合配置
-        self.fusion_mode = "adaptive"       # 融合模式: "average" | "adaptive"
-        self.attention_heads = 4            # 注意力头数
-        self.attention_dropout = 0.1        # 注意力dropout率        
 
         if self.dataset == 'gaia':
             self.feat_drop = 0
