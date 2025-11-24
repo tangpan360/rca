@@ -5,13 +5,8 @@ import torch.nn.functional as F
 
 class TaskSpecificModalAttention(nn.Module):
     """
-    任务特定的模态注意力机制
-    为FTI和RCL任务分别设计不同的模态融合策略
-    
-    修复版本：
-    1. 正确的维度计算
-    2. 真正的任务特定性
-    3. 清晰的语义表达
+    统一结构的模态注意力机制
+    FTI和RCL任务使用相同的网络结构，通过任务类型标识区分
     """
     def __init__(self, modal_dim, num_heads=4, dropout=0.1, task_type="fti"):
         super(TaskSpecificModalAttention, self).__init__()
@@ -20,35 +15,19 @@ class TaskSpecificModalAttention(nn.Module):
         self.modal_dim = modal_dim
         self.num_heads = num_heads
         
-        # 任务特定的查询变换 - 增强差异化设计
-        if task_type == "fti":
-            # FTI关注全局故障模式：使用更复杂的变换捕获跨模态关系
-            self.query_proj = nn.Sequential(
-                nn.Linear(modal_dim, modal_dim * 2),
-                nn.LayerNorm(modal_dim * 2),
-                nn.ReLU(),
-                nn.Dropout(dropout),
-                nn.Linear(modal_dim * 2, modal_dim),
-                nn.LayerNorm(modal_dim),
-                nn.Tanh()  # 使用tanh激活，适合全局特征学习
-            )
-            # FTI专用的key/value投影（可选）
-            self.key_proj = nn.Linear(modal_dim, modal_dim)
-            self.value_proj = nn.Linear(modal_dim, modal_dim)
-            
-        else:  # rcl
-            # RCL关注局部异常信号：使用更直接的变换保持细节敏感性
-            self.query_proj = nn.Sequential(
-                nn.Linear(modal_dim, modal_dim),
-                nn.LayerNorm(modal_dim), 
-                nn.ReLU(),
-                nn.Dropout(dropout),
-                nn.Linear(modal_dim, modal_dim),
-                nn.Sigmoid()  # 使用sigmoid激活，适合异常检测
-            )
-            # RCL使用恒等映射保持原始特征
-            self.key_proj = nn.Identity()
-            self.value_proj = nn.Identity()
+        # 统一的查询变换结构
+        self.query_proj = nn.Sequential(
+            nn.Linear(modal_dim, modal_dim * 2),
+            nn.LayerNorm(modal_dim * 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(modal_dim * 2, modal_dim),
+            nn.LayerNorm(modal_dim)
+        )
+        
+        # 统一的key/value投影
+        self.key_proj = nn.Linear(modal_dim, modal_dim)
+        self.value_proj = nn.Linear(modal_dim, modal_dim)
         
         # 多头注意力机制
         self.attention = nn.MultiheadAttention(
@@ -67,7 +46,7 @@ class TaskSpecificModalAttention(nn.Module):
         
     def forward(self, modal_features, context_features):
         """
-        增强的任务特定注意力计算
+        统一的注意力计算
         
         Args:
             modal_features: [batch_size, num_modals, modal_dim] 堆叠的模态特征
@@ -79,33 +58,23 @@ class TaskSpecificModalAttention(nn.Module):
         """
         batch_size, num_modals, modal_dim = modal_features.shape
         
-        # 任务特定的查询变换
+        # 统一的查询变换
         query = self.query_proj(context_features).unsqueeze(1)  # [batch_size, 1, modal_dim]
         
-        # 任务特定的key/value变换
-        # FTI: 使用学习的投影捕获跨模态关系
-        # RCL: 使用恒等映射保持原始细节
-        key_features = self.key_proj(modal_features.reshape(-1, modal_dim)).reshape(batch_size, num_modals, modal_dim)
-        value_features = self.value_proj(modal_features.reshape(-1, modal_dim)).reshape(batch_size, num_modals, modal_dim)
+        # 统一的key/value变换（去除冗余的reshape操作）
+        key_features = self.key_proj(modal_features)    # [batch_size, num_modals, modal_dim]
+        value_features = self.value_proj(modal_features)  # [batch_size, num_modals, modal_dim]
         
         # 多头注意力计算
         attn_output, attn_weights = self.attention(
             query=query,                    # [batch_size, 1, modal_dim]
-            key=key_features,              # [batch_size, num_modals, modal_dim] (任务特定变换)
-            value=value_features,          # [batch_size, num_modals, modal_dim] (任务特定变换)
+            key=key_features,              # [batch_size, num_modals, modal_dim]
+            value=value_features,          # [batch_size, num_modals, modal_dim]
             need_weights=True
         )
         
         # 输出投影
         fused_features = self.output_proj(attn_output.squeeze(1))  # [batch_size, modal_dim]
-        
-        # 任务特定的残差连接策略
-        if self.task_type == "fti":
-            # FTI: 较强的残差连接，保持全局信息
-            fused_features = fused_features + 0.5 * context_features
-        else:  # rcl
-            # RCL: 较弱的残差连接，突出注意力结果
-            fused_features = fused_features + 0.2 * context_features
         
         return fused_features, attn_weights
 
@@ -117,7 +86,7 @@ class AdaptiveModalFusion(nn.Module):
     def __init__(self, modal_dim, num_heads=4, dropout=0.1, fusion_mode="adaptive"):
         super(AdaptiveModalFusion, self).__init__()
         
-        self.fusion_mode = fusion_mode  # "average" 或 "adaptive"
+        self.fusion_mode = fusion_mode
         self.modal_dim = modal_dim
         
         if fusion_mode == "average":
