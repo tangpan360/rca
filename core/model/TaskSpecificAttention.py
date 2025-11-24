@@ -114,12 +114,11 @@ class AdaptiveModalFusion(nn.Module):
     """
     简化的多模态融合模块 - 两种融合策略，统一32维输出
     """
-    def __init__(self, modal_dim, num_heads=4, dropout=0.1, fusion_mode="adaptive", max_modalities=3):
+    def __init__(self, modal_dim, num_heads=4, dropout=0.1, fusion_mode="adaptive"):
         super(AdaptiveModalFusion, self).__init__()
         
         self.fusion_mode = fusion_mode  # "average" 或 "adaptive"
         self.modal_dim = modal_dim
-        self.max_modalities = max_modalities
         
         if fusion_mode == "average":
             # 简单平均融合

@@ -7,7 +7,7 @@ from core.model.backbone.sage import SAGEEncoder
 
 class Encoder(nn.Module):
     def __init__(self, 
-                 alert_embedding_dim: int,
+                 feature_embedding_dim: int,
                  graph_hidden_dim: int, 
                  graph_out_dim: int,
                  num_layers=2,
@@ -16,7 +16,7 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
 
         self.graph_encoder = SAGEEncoder(
-            in_dim=alert_embedding_dim,
+            in_dim=feature_embedding_dim,
             out_dim=graph_out_dim,
             hidden_dim=graph_hidden_dim,
             num_layers=num_layers,
@@ -25,13 +25,13 @@ class Encoder(nn.Module):
         )
 
         # self.graph_encoder = TAGEncoder(
-        #     in_dim=alert_embedding_dim,
+        #     in_dim=feature_embedding_dim,
         #     out_dim=graph_out_dim,
         #     hidden_dim=graph_hidden_dim,
         #     num_layers=num_layers
         # )
         # self.graph_encoder = SGCEncoder(
-        #     in_dim=alert_embedding_dim,
+        #     in_dim=feature_embedding_dim,
         #     out_dim=graph_out_dim,
         #     hidden_dim=graph_hidden_dim,
         #     num_layers=num_layers

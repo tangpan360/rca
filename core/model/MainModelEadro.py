@@ -20,13 +20,13 @@ class MainModelEadro(nn.Module):
         self.config = config
         
         # Eadro模态编码器（将原始数据编码为固定维度）
-        self.eadro_encoder = EadroModalEncoder(output_dim=config.alert_embedding_dim)
+        self.eadro_encoder = EadroModalEncoder(output_dim=config.feature_embedding_dim)
         
         # TVDiag图编码器（每个模态一个）
         self.encoders = nn.ModuleDict()
         for modality in config.modalities:
             self.encoders[modality] = Encoder(
-                alert_embedding_dim=config.alert_embedding_dim,
+                feature_embedding_dim=config.feature_embedding_dim,
                 graph_hidden_dim=config.graph_hidden_dim,
                 graph_out_dim=config.graph_out,
                 num_layers=config.graph_layers,
@@ -39,8 +39,7 @@ class MainModelEadro(nn.Module):
             modal_dim=config.graph_out,
             num_heads=getattr(config, 'attention_heads', 4),
             dropout=getattr(config, 'attention_dropout', 0.1),
-            fusion_mode=config.fusion_mode,
-            max_modalities=len(config.modalities)
+            fusion_mode=config.fusion_mode
         )
         
         # 统一分类器：由于融合后所有模态组合都输出32维，使用统一分类器
