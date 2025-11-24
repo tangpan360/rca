@@ -5,8 +5,8 @@ import torch.nn.functional as F
 
 class TaskSpecificModalAttention(nn.Module):
     """
-    统一结构的模态注意力机制
-    FTI和RCL任务使用相同的网络结构，通过任务类型标识区分
+    任务特定的模态注意力机制
+    FTI和RCL任务使用独立的可学习查询向量
     """
     def __init__(self, modal_dim, num_heads=4, dropout=0.1, task_type="fti"):
         super(TaskSpecificModalAttention, self).__init__()
@@ -15,17 +15,17 @@ class TaskSpecificModalAttention(nn.Module):
         self.modal_dim = modal_dim
         self.num_heads = num_heads
         
-        # 统一的查询变换结构
+        # 可学习的任务查询向量（核心改进）
+        self.task_query = nn.Parameter(torch.randn(1, modal_dim))
+        
+        # 简化的查询投影
         self.query_proj = nn.Sequential(
-            nn.Linear(modal_dim, modal_dim * 2),
-            nn.LayerNorm(modal_dim * 2),
-            nn.GELU(),
-            nn.Dropout(dropout),
-            nn.Linear(modal_dim * 2, modal_dim),
-            nn.LayerNorm(modal_dim)
+            nn.Linear(modal_dim, modal_dim),
+            nn.LayerNorm(modal_dim),
+            nn.GELU()
         )
         
-        # 统一的key/value投影
+        # Key/Value投影
         self.key_proj = nn.Linear(modal_dim, modal_dim)
         self.value_proj = nn.Linear(modal_dim, modal_dim)
         
@@ -37,20 +37,21 @@ class TaskSpecificModalAttention(nn.Module):
             batch_first=True
         )
         
-        # 输出投影和标准化
+        # 增强的输出投影
         self.output_proj = nn.Sequential(
             nn.Linear(modal_dim, modal_dim),
             nn.LayerNorm(modal_dim),
+            nn.GELU(),
             nn.Dropout(dropout)
         )
         
-    def forward(self, modal_features, context_features):
+    def forward(self, modal_features, context_features=None):
         """
-        统一的注意力计算
+        基于可学习任务查询的注意力计算
         
         Args:
             modal_features: [batch_size, num_modals, modal_dim] 堆叠的模态特征
-            context_features: [batch_size, modal_dim] 任务上下文特征
+            context_features: 保留参数以兼容旧接口（未使用）
         
         Returns:
             fused_features: [batch_size, modal_dim] 融合后的特征
@@ -58,10 +59,11 @@ class TaskSpecificModalAttention(nn.Module):
         """
         batch_size, num_modals, modal_dim = modal_features.shape
         
-        # 统一的查询变换
-        query = self.query_proj(context_features).unsqueeze(1)  # [batch_size, 1, modal_dim]
+        # 使用可学习的任务查询（避免循环依赖）
+        query = self.task_query.expand(batch_size, -1)  # [batch_size, modal_dim]
+        query = self.query_proj(query).unsqueeze(1)  # [batch_size, 1, modal_dim]
         
-        # 统一的key/value变换（去除冗余的reshape操作）
+        # Key/Value变换
         key_features = self.key_proj(modal_features)    # [batch_size, num_modals, modal_dim]
         value_features = self.value_proj(modal_features)  # [batch_size, num_modals, modal_dim]
         
@@ -138,12 +140,9 @@ class AdaptiveModalFusion(nn.Module):
             fusion_info['fusion_type'] = 'simple_average'
             
         elif self.fusion_mode == "adaptive":
-            # 自适应权重融合
-            f_context = f_stack.mean(dim=1)  # [B, D] - 全局上下文
-            e_context = e_stack.mean(dim=1)  # [N, D] - 局部上下文
-            
-            f_fused, fti_attn = self.fti_attention(f_stack, f_context)  # [B, D]
-            e_fused, rcl_attn = self.rcl_attention(e_stack, e_context)  # [N, D]
+            # 自适应权重融合（使用可学习的任务查询）
+            f_fused, fti_attn = self.fti_attention(f_stack)  # [B, D]
+            e_fused, rcl_attn = self.rcl_attention(e_stack)  # [N, D]
             
             fusion_info['fti_attention'] = fti_attn
             fusion_info['rcl_attention'] = rcl_attn  
