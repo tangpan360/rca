@@ -16,7 +16,8 @@ class TaskSpecificModalAttention(nn.Module):
         self.num_heads = num_heads
         
         # 可学习的任务查询向量（核心改进）
-        self.task_query = nn.Parameter(torch.randn(1, modal_dim))
+        self.task_query = nn.Parameter(torch.empty(1, modal_dim))
+        nn.init.xavier_normal_(self.task_query)
         
         # 简化的查询投影
         self.query_proj = nn.Sequential(
