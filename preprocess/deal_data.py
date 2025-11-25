@@ -18,7 +18,7 @@ TRACE_DATA_CACHE = {}
 NORMALIZATION_STATS = {
     'metric': None,  # {'mean': [12], 'std': [12]}
     'log': None,     # {'mean': [48], 'std': [48]}
-    'trace': None    # [{'mean': float, 'std': float}] * 10
+    'trace': None    # [{'mean': float, 'std': float}] * 10 (for duration only)
 }
 
 
@@ -54,13 +54,13 @@ def preload_all_data():
             print(f"  ✓ {instance_name}: {len(df)} 行数据")
     
     # 3. 预加载 Trace 数据
-    print("\n[3/3] 加载 Trace 数据...")
+    print("\n[3/3] 加载 Trace 数据 (包含status_code)...")
     trace_data_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'trace')
     for instance_name in tqdm(SERVICES, desc="Trace"):
         trace_file = os.path.join(trace_data_dir, f"{instance_name}_trace.csv")
         if os.path.exists(trace_file):
-            # 只读取需要的列以节省内存
-            df = pd.read_csv(trace_file, usecols=['start_time_ts', 'duration'])
+            # 读取 duration 和 status_code
+            df = pd.read_csv(trace_file, usecols=['start_time_ts', 'duration', 'status_code'])
             TRACE_DATA_CACHE[instance_name] = df
             print(f"  ✓ {instance_name}: {len(df)} 行数据")
     
@@ -107,7 +107,7 @@ def compute_normalization_stats(label_df):
     统计方式:
         - Metric: 排除NaN，包含0（0是真实值）
         - Log: 排除0（0是真实的'未出现'）
-        - Trace: 排除NaN和0（都是缺失）
+        - Trace: 排除NaN和0（都是缺失），仅对Duration统计
     """
     train_df = label_df[label_df['data_type'] == 'train']
     print(f"\n从 {len(train_df)} 个训练样本计算归一化统计...")
@@ -138,9 +138,9 @@ def compute_normalization_stats(label_df):
             non_zero_vals = vals[vals != 0]  # 排除0
             all_logs[i].extend(non_zero_vals)
         
-        # Trace: 按instance收集非NaN且非0的值
+        # Trace: 按instance收集非NaN且非0的值 (只收集通道0: Duration)
         for i in range(10):
-            vals = trace[i, :, 0]
+            vals = trace[i, :, 0]  # Channel 0: Duration
             valid_vals = vals[~np.isnan(vals) & (vals != 0)]  # 排除NaN和0
             all_traces[i].extend(valid_vals)
     
@@ -176,7 +176,7 @@ def compute_normalization_stats(label_df):
             log_stds[i] = 1.0
     print(f"  Log: {np.sum([len(all_logs[i]) > 0 for i in range(48)])}/48 个模板有数据")
     
-    # Trace统计
+    # Trace统计 (只对Duration)
     trace_stats = []
     for i in range(10):
         if len(all_traces[i]) > 0:
@@ -320,6 +320,10 @@ def _process_trace_for_sample(st_time, ed_time, normalize=True):
     """
     处理单个样本的trace数据（使用预加载的缓存）
     
+    双通道特征提取：
+    - Channel 0: Duration (响应时间)
+    - Channel 1: Error Rate (错误率, based on status_code >= 400)
+    
     Args:
         st_time: 故障开始时间戳（毫秒）
         ed_time: 故障结束时间戳（毫秒）
@@ -327,16 +331,17 @@ def _process_trace_for_sample(st_time, ed_time, normalize=True):
     
     Returns:
         tuple: (trace_data, availability)
-            - trace_data: numpy array, shape [10, 20, 1]
+            - trace_data: numpy array, shape [10, 20, 2]
             - availability: bool - 整个trace模态是否可用
     """
     # 使用全局定义的服务顺序
     num_instances = len(SERVICES)
     num_time_segments = 20  # 20个时间段
     segment_duration = 30 * 1000  # 每个时间段30秒（毫秒）
+    num_channels = 2 # Duration + ErrorRate
     
-    # 初始化结果数组 [num_instances, num_time_segments, 1]，默认值为NaN
-    trace_data = np.full((num_instances, num_time_segments, 1), np.nan)
+    # 初始化结果数组 [num_instances, num_time_segments, 2]，默认值为NaN
+    trace_data = np.full((num_instances, num_time_segments, num_channels), np.nan)
     
     # 按照固定顺序遍历每个instance
     for instance_idx, instance_name in enumerate(SERVICES):
@@ -355,6 +360,7 @@ def _process_trace_for_sample(st_time, ed_time, normalize=True):
                 # 向量化计算：批量计算所有trace的时间段索引
                 timestamps = sample_data['start_time_ts'].values
                 durations = sample_data['duration'].values
+                status_codes = sample_data['status_code'].values
                 
                 # 批量计算时间偏移和段索引
                 time_offsets = timestamps - st_time
@@ -364,14 +370,22 @@ def _process_trace_for_sample(st_time, ed_time, normalize=True):
                 valid_mask = (segment_indices >= 0) & (segment_indices < num_time_segments)
                 valid_segments = segment_indices[valid_mask]
                 valid_durations = durations[valid_mask]
+                valid_status = status_codes[valid_mask]
                 
-                # 按段索引分组计算平均值
+                # 按段索引分组计算
                 for seg_idx in range(num_time_segments):
                     seg_mask = valid_segments == seg_idx
                     if seg_mask.any():
+                        # 1. Duration Mean
                         mean_duration = valid_durations[seg_mask].mean()
-                        # 赋值平均duration（可能为0）
                         trace_data[instance_idx, seg_idx, 0] = mean_duration
+                        
+                        # 2. Error Rate (status_code >= 400)
+                        # 计算错误请求的比例
+                        seg_status = valid_status[seg_mask]
+                        error_count = np.sum(seg_status >= 400)
+                        error_rate = error_count / len(seg_status)
+                        trace_data[instance_idx, seg_idx, 1] = error_rate
         
         except Exception:
             continue
@@ -384,13 +398,18 @@ def _process_trace_for_sample(st_time, ed_time, normalize=True):
         for i in range(num_instances):
             stats = NORMALIZATION_STATS['trace'][i]
             
-            # 只用均值填充NaN，不填充0（0是真实值）
-            nan_mask = np.isnan(trace_data[i, :, 0])
-            if nan_mask.any():
-                trace_data[i, :, 0][nan_mask] = stats['mean']
-            
-            # 归一化
+            # Channel 0 (Duration): 用均值填充NaN，然后归一化
+            nan_mask_0 = np.isnan(trace_data[i, :, 0])
+            if nan_mask_0.any():
+                trace_data[i, :, 0][nan_mask_0] = stats['mean']
             trace_data[i, :, 0] = (trace_data[i, :, 0] - stats['mean']) / stats['std']
+            
+            # Channel 1 (Error Rate): 用0填充NaN (没有请求就没有错误)，不归一化(本身0-1)
+            nan_mask_1 = np.isnan(trace_data[i, :, 1])
+            if nan_mask_1.any():
+                trace_data[i, :, 1][nan_mask_1] = 0.0
+            # Error Rate 不需要 Z-Score 归一化
+            
     else:
         # 如果不归一化（统计阶段），保持NaN
         pass
@@ -498,7 +517,9 @@ if __name__ == "__main__":
     print(f"\n数据处理策略:")
     print(f"   Metric: 排除NaN统计，NaN填充为均值")
     print(f"   Log: 排除0统计，不填充（0是真实的'未出现'）")
-    print(f"   Trace: 排除NaN和0统计，只填充NaN（0是真实值）")
+    print(f"   Trace: 双通道 (Duration, ErrorRate)")
+    print(f"     - Ch0(Duration): 归一化，NaN填充均值")
+    print(f"     - Ch1(ErrorRate): 不归一化，NaN填充0")
     print(f"\n可用性标记: 每个样本包含模态级别标记")
     print(f"   - metric_available: bool（整个模态是否可用）")
     print(f"   - log_available: bool（整个模态是否可用）")

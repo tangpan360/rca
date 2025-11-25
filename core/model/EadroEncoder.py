@@ -44,11 +44,15 @@ class LogEncoder(nn.Module):
 
 
 class TraceEncoder(nn.Module):
-    """Eadro风格的Trace编码器: 1D CNN处理duration时序"""
+    """
+    双通道输入: Duration + Error Rate
+    """
     def __init__(self, seq_len=20, output_dim=128):
         super(TraceEncoder, self).__init__()
-        # 输入: [batch, 20, 1]
-        self.conv1 = nn.Conv1d(1, 32, kernel_size=3, padding=1)
+        # 输入: [batch, 20, 2]
+        # Channel 0: Duration (Normalized)
+        # Channel 1: Error Rate (0-1)
+        self.conv1 = nn.Conv1d(2, 32, kernel_size=3, padding=1)  # input_channels=2
         self.bn1 = nn.BatchNorm1d(32)
         self.conv2 = nn.Conv1d(32, 64, kernel_size=3, padding=1)
         self.bn2 = nn.BatchNorm1d(64)
@@ -56,8 +60,8 @@ class TraceEncoder(nn.Module):
         self.fc = nn.Linear(64, output_dim)
         
     def forward(self, x):
-        # x: [batch, 20, 1]
-        x = x.transpose(1, 2)  # [batch, 1, 20]
+        # x: [batch, 20, 2]
+        x = x.transpose(1, 2)  # [batch, 2, 20]
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = self.pool(x).squeeze(-1)  # [batch, 64]
@@ -81,7 +85,7 @@ class EadroModalEncoder(nn.Module):
         Args:
             metric_data: [batch, 20, 12]
             log_data: [batch, 48]
-            trace_data: [batch, 20, 1]
+            trace_data: [batch, 20, 2]  <-- Updated shape
         Returns:
             metric_emb: [batch, output_dim]
             log_emb: [batch, output_dim]
