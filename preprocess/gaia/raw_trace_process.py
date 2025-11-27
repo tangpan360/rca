@@ -13,7 +13,7 @@ import warnings
 from multiprocessing import Pool, cpu_count
 import sys
 import os
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 extractor_path = os.path.join(project_root, 'extractor')
 sys.path.append(extractor_path)
 from utils.time_util import coast_time as time_decorator
@@ -367,12 +367,12 @@ def main():
     主函数
     """
     # 获取项目根目录
-    project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
     # 定义文件路径（使用相对路径）
-    label_file = os.path.join(project_dir, "extractor", "MicroSS", "label.csv")
-    trace_dir = os.path.join(project_dir, "extractor", "MicroSS", "trace")
-    output_dir = os.path.join(project_dir, "preprocess", "processed_data", "trace")
+    label_file = os.path.join(project_dir, "preprocess", "raw_data", "gaia", "label_gaia.csv")
+    trace_dir = os.path.join(project_dir, "preprocess", "raw_data", "gaia", "trace")
+    output_dir = os.path.join(project_dir, "preprocess", "processed_data", "gaia", "trace")
     
     # 1. 加载异常时间段
     anomaly_periods = load_anomaly_periods(label_file)

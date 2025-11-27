@@ -62,9 +62,9 @@ class Config:
             self.log_dim = 48
             self.seq_len = 20
             # Gaia数据集路径配置
-            self.dataset_path = "./preprocess/processed_data/dataset.pkl"
-            self.nodes_path = "./preprocess/processed_data/nodes.json"
-            self.edges_path = "./preprocess/processed_data/edges.json"
+            self.dataset_path = "./preprocess/processed_data/gaia/dataset.pkl"
+            self.nodes_path = "./preprocess/processed_data/gaia/graph/nodes_dynamic_no_influence.json"
+            self.edges_path = "./preprocess/processed_data/gaia/graph/edges_dynamic_no_influence.json"
         elif self.dataset == 'sn':
             self.feat_drop = 0
             self.patience = 10

@@ -18,8 +18,8 @@
    - 适合固定架构的GNN训练场景
 
 支持配置是否包含同节点影响边（influences）：
-   - 默认包含：edges = trace调用关系 + 同节点影响（与原始方案一致）
-   - 可选不包含：edges = 仅trace调用关系（纯调用拓扑）
+   - 默认不包含：edges = 仅trace调用关系（纯调用拓扑）
+   - 可选包含：edges = trace调用关系 + 同节点影响
 
 输出文件命名格式：
    - nodes_{mode}_with_influence.json   # 包含影响边
@@ -29,13 +29,13 @@
 
 使用方法：
     # 基本用法
-    python extract_graph_structure.py                              # 默认: dynamic + 包含influences
-    python extract_graph_structure.py --mode dynamic               # 显式dynamic + 包含influences
-    python extract_graph_structure.py --mode static                # static + 包含influences
+    python extract_graph_structure.py                              # 默认: dynamic + 不包含influences
+    python extract_graph_structure.py --mode dynamic               # 显式dynamic + 不包含influences
+    python extract_graph_structure.py --mode static                # static + 不包含influences
     
-    # 不包含同节点影响边
-    python extract_graph_structure.py --no-influences              # dynamic + 不包含influences
-    python extract_graph_structure.py --mode static --no-influences # static + 不包含influences
+    # 包含同节点影响边
+    python extract_graph_structure.py --with-influences            # dynamic + 包含influences
+    python extract_graph_structure.py --mode static --with-influences # static + 包含influences
 """
 
 import os
@@ -46,7 +46,7 @@ from collections import defaultdict
 import json
 
 # 添加项目路径
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(project_root)
 
 from helper import io_util
@@ -333,11 +333,11 @@ def extract_graph_for_all_cases(label_file, trace_dir, metric_dir, output_dir,
     else:  # mode == 'dynamic'
         # 动态模式：每个案例单独提取edges
         # 性能优化：一次性加载所有trace到内存，然后快速筛选（避免重复读取文件）
-        print(f"\n4. [动态模式] 加载所有trace数据到内存（性能优化：只读取一次）")
+        print(f"\n4. [动态模式] 加载所有trace数据到内存")
         all_trace_df = load_trace_data(trace_dir)
         print(f"   成功加载，共 {len(all_trace_df):,} 条trace记录")
         
-        print(f"\n5. [动态模式] 为每个案例单独提取edges（内存筛选，速度快）")
+        print(f"\n5. [动态模式] 为每个案例单独提取edges")
         edge_stats = []  # 统计每个案例的edges数量
         
         for idx, row in tqdm(label_df.iterrows(), total=len(label_df), desc="处理故障案例"):
@@ -411,13 +411,13 @@ def main():
     
     支持命令行参数：
         --mode: 提取模式，可选 'dynamic' 或 'static'（默认: dynamic）
-        --no-influences: 不包含同节点影响边（默认包含）
+        --with-influences: 包含同节点影响边（默认不包含）
         
     示例：
-        python extract_graph_structure.py                              # 默认：dynamic + 包含influences
-        python extract_graph_structure.py --mode static                # 静态模式 + 包含influences
-        python extract_graph_structure.py --no-influences              # 动态模式 + 不包含influences
-        python extract_graph_structure.py --mode static --no-influences # 静态模式 + 不包含influences
+        python extract_graph_structure.py                              # 默认：dynamic + 不包含influences
+        python extract_graph_structure.py --mode static                # 静态模式 + 不包含influences
+        python extract_graph_structure.py --with-influences            # 动态模式 + 包含influences
+        python extract_graph_structure.py --mode static --with-influences # 静态模式 + 包含influences
     """
     import argparse
     
@@ -438,8 +438,8 @@ def main():
            - 更适合固定架构的分析场景
 
 影响边说明：
-  默认情况下会包含同节点影响边（influences），即同一物理节点上的服务之间的双向边。
-  使用 --no-influences 可以只保留trace调用关系，不包含同节点影响。
+  默认情况下不包含同节点影响边（influences），只保留trace调用关系。
+  使用 --with-influences 可以包含同节点影响边，即同一物理节点上的服务之间的双向边。
         """
     )
     parser.add_argument(
@@ -450,26 +450,26 @@ def main():
         help='提取模式：dynamic（每个案例单独edges）或 static（全局共享edges）'
     )
     parser.add_argument(
-        '--no-influences',
+        '--with-influences',
         action='store_true',
-        help='不包含同节点影响边（默认包含）'
+        help='包含同节点影响边（默认不包含）'
     )
     
     args = parser.parse_args()
     
     # 转换为 include_influences 参数
-    include_influences = not args.no_influences
+    include_influences = args.with_influences
     
     # 定义路径
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
     # 输入路径
-    label_file = os.path.join(project_root, "extractor", "MicroSS", "label.csv")
-    trace_dir = os.path.join(project_root, "preprocess", "processed_data", "trace")
-    metric_dir = os.path.join(project_root, "extractor", "MicroSS", "metric")
+    label_file = os.path.join(project_root, "preprocess", "raw_data", "gaia", "label_gaia.csv")
+    trace_dir = os.path.join(project_root, "preprocess", "processed_data", "gaia", "trace")
+    metric_dir = os.path.join(project_root, "preprocess", "raw_data", "gaia", "metric")
     
     # 输出路径
-    output_dir = os.path.join(project_root, "preprocess", "processed_data", "graph")
+    output_dir = os.path.join(project_root, "preprocess", "processed_data", "gaia", "graph")
     
     # 执行提取
     print(f"\n配置:")
