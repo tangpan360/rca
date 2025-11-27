@@ -52,7 +52,18 @@ def train_and_evaluate(config: Config, log_dir, exp_name):
 
 
 if __name__ == '__main__':
-    dataset = 'gaia'
+    import argparse
+    parser = argparse.ArgumentParser(description='TVDiag with Eadro Encoders')
+    parser.add_argument('--dataset', default='sn', choices=['gaia', 'sn'],
+                       help='Dataset to use: gaia or sn')
+    parser.add_argument('--gpu', default='0', help='GPU device ID')
+    parser.add_argument('--seed', default=2, type=int, help='Random seed')
+    args = parser.parse_args()
+    
+    dataset = args.dataset
     config = Config(dataset)
+    config.gpu_device = args.gpu
+    config.seed = args.seed
+    
     train_and_evaluate(config, f'./logs/{dataset}', f'{dataset}_eadro')
 

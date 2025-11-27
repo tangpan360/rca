@@ -20,7 +20,12 @@ class MainModelEadro(nn.Module):
         self.config = config
         
         # Eadro模态编码器（将原始数据编码为固定维度）
-        self.eadro_encoder = EadroModalEncoder(output_dim=config.feature_embedding_dim)
+        self.eadro_encoder = EadroModalEncoder(
+            output_dim=config.feature_embedding_dim,
+            metric_channels=config.metric_channels,
+            log_dim=config.log_dim,
+            seq_len=config.seq_len
+        )
         
         # TVDiag图编码器（每个模态一个）
         self.encoders = nn.ModuleDict()

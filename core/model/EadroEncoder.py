@@ -16,8 +16,8 @@ class MetricEncoder(nn.Module):
         self.fc = nn.Linear(128, output_dim)
         
     def forward(self, x):
-        # x: [batch, 20, 12]
-        x = x.transpose(1, 2)  # [batch, 12, 20]
+        # x: [batch, seq_len, input_channels]
+        x = x.transpose(1, 2)  # [batch, input_channels, seq_len]
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = self.pool(x).squeeze(-1)  # [batch, 128]
@@ -36,7 +36,7 @@ class LogEncoder(nn.Module):
         self.fc3 = nn.Linear(128, output_dim)
         
     def forward(self, x):
-        # x: [batch, 48]
+        # x: [batch, input_dim]
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.fc2(x)))
         x = self.fc3(x)  # [batch, output_dim]
@@ -60,8 +60,8 @@ class TraceEncoder(nn.Module):
         self.fc = nn.Linear(64, output_dim)
         
     def forward(self, x):
-        # x: [batch, 20, 2]
-        x = x.transpose(1, 2)  # [batch, 2, 20]
+        # x: [batch, seq_len, 2]
+        x = x.transpose(1, 2)  # [batch, 2, seq_len]
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = self.pool(x).squeeze(-1)  # [batch, 64]
@@ -74,18 +74,22 @@ class EadroModalEncoder(nn.Module):
     Eadro风格的多模态编码器
     将原始时序数据编码为固定维度的embedding，然后接入TVDiag的图网络
     """
-    def __init__(self, output_dim=128):
+    def __init__(self, output_dim=128, metric_channels=12, log_dim=48, seq_len=20):
         super(EadroModalEncoder, self).__init__()
-        self.metric_encoder = MetricEncoder(output_dim=output_dim)
-        self.log_encoder = LogEncoder(output_dim=output_dim)
-        self.trace_encoder = TraceEncoder(output_dim=output_dim)
+        self.metric_encoder = MetricEncoder(
+            input_channels=metric_channels, 
+            seq_len=seq_len, 
+            output_dim=output_dim
+        )
+        self.log_encoder = LogEncoder(input_dim=log_dim, output_dim=output_dim)
+        self.trace_encoder = TraceEncoder(seq_len=seq_len, output_dim=output_dim)
         
     def forward(self, metric_data, log_data, trace_data):
         """
         Args:
-            metric_data: [batch, 20, 12]
-            log_data: [batch, 48]
-            trace_data: [batch, 20, 2]  <-- Updated shape
+            metric_data: [batch, seq_len, metric_channels]
+            log_data: [batch, log_dim]
+            trace_data: [batch, seq_len, 2]
         Returns:
             metric_emb: [batch, output_dim]
             log_emb: [batch, output_dim]

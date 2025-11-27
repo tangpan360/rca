@@ -57,6 +57,14 @@ class Config:
             self.patience = 10
             self.ft_num = 5
             self.aggregator = 'mean'
+            # Gaia数据集维度配置
+            self.metric_channels = 12
+            self.log_dim = 48
+            self.seq_len = 20
+            # Gaia数据集路径配置
+            self.dataset_path = "./preprocess/processed_data/dataset.pkl"
+            self.nodes_path = "./preprocess/processed_data/nodes.json"
+            self.edges_path = "./preprocess/processed_data/edges.json"
         elif self.dataset == 'aiops22':
             if not self.trace_op:
                 self.lr = 0.01
@@ -80,6 +88,20 @@ class Config:
             self.ft_num = 5
             self.graph_layers=2
             self.aggregator = 'mean'
+        elif self.dataset == 'sn':
+            self.feat_drop = 0
+            self.patience = 10
+            self.ft_num = 12  # SN有12个服务
+            self.aggregator = 'mean'
+            self.batch_size = 8
+            # SN数据集维度配置
+            self.metric_channels = 7
+            self.log_dim = 13
+            self.seq_len = 10
+            # SN数据集路径配置
+            self.dataset_path = "./preprocess/processed_data/sn/dataset.pkl"
+            self.nodes_path = "./preprocess/processed_data/sn/graph/nodes_dynamic_no_influence.json"
+            self.edges_path = "./preprocess/processed_data/sn/graph/edges_dynamic_no_influence.json"
         else:
             raise NotImplementedError()
     
