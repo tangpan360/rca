@@ -65,29 +65,6 @@ class Config:
             self.dataset_path = "./preprocess/processed_data/dataset.pkl"
             self.nodes_path = "./preprocess/processed_data/nodes.json"
             self.edges_path = "./preprocess/processed_data/edges.json"
-        elif self.dataset == 'aiops22':
-            if not self.trace_op:
-                self.lr = 0.01
-            self.feat_drop = 0.1
-            self.batch_size = 128
-            self.patience =20
-            self.ft_num = 9
-            self.aggregator = 'mean'
-        elif self.dataset == 'sockshop':
-            self.feat_drop = 0
-            self.aug_percent = 0.4
-            self.batch_size = 128
-            self.patience =10
-            self.ft_num = 7
-            self.aggregator = 'mean'
-        elif self.dataset == 'hotel':
-            self.feat_drop = 0.3
-            self.aug_percent = 0.2
-            self.batch_size = 128
-            self.patience =10
-            self.ft_num = 5
-            self.graph_layers=2
-            self.aggregator = 'mean'
         elif self.dataset == 'sn':
             self.feat_drop = 0
             self.patience = 10
