@@ -29,13 +29,13 @@
 
 使用方法：
     # 基本用法
-    python extract_graph_structure.py                              # 默认: dynamic + 不包含influences
-    python extract_graph_structure.py --mode dynamic               # 显式dynamic + 不包含influences
-    python extract_graph_structure.py --mode static                # static + 不包含influences
+    python process_gaia_graph.py                              # 默认: dynamic + 不包含influences
+    python process_gaia_graph.py --mode dynamic               # 显式dynamic + 不包含influences
+    python process_gaia_graph.py --mode static                # static + 不包含influences
     
     # 包含同节点影响边
-    python extract_graph_structure.py --with-influences            # dynamic + 包含influences
-    python extract_graph_structure.py --mode static --with-influences # static + 包含influences
+    python process_gaia_graph.py --with-influences            # dynamic + 包含influences
+    python process_gaia_graph.py --mode static --with-influences # static + 包含influences
 """
 
 import os
@@ -414,10 +414,10 @@ def main():
         --with-influences: 包含同节点影响边（默认不包含）
         
     示例：
-        python extract_graph_structure.py                              # 默认：dynamic + 不包含influences
-        python extract_graph_structure.py --mode static                # 静态模式 + 不包含influences
-        python extract_graph_structure.py --with-influences            # 动态模式 + 包含influences
-        python extract_graph_structure.py --mode static --with-influences # 静态模式 + 包含influences
+        python process_gaia_graph.py                              # 默认：dynamic + 不包含influences
+        python process_gaia_graph.py --mode static                # 静态模式 + 不包含influences
+        python process_gaia_graph.py --with-influences            # 动态模式 + 包含influences
+        python process_gaia_graph.py --mode static --with-influences # 静态模式 + 包含influences
     """
     import argparse
     

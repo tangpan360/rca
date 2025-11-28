@@ -5,34 +5,58 @@
 """
 
 import os
+import sys
 import drain3
 import pandas as pd
 from tqdm import tqdm
 
 from drain3 import TemplateMiner
 from drain3.template_miner_config import TemplateMinerConfig
-import utils.io_util as io
+# 添加extractor路径以正确导入utils.io_util
+extractor_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, extractor_path)
+from utils import io_util as io
 
 
-def init_drain():
+def init_drain(config_path):
+    """
+    初始化Drain模板挖掘器
+    
+    Args:
+        config_path (str): 配置文件路径（必须提供）
+        
+    Returns:
+        TemplateMiner: 初始化后的模板挖掘器
+    """
+    if config_path is None:
+        raise ValueError("config_path is required. Please provide the path to drain configuration file.")
+    
     config = TemplateMinerConfig()
-    config_pth = os.path.join(
-        os.path.dirname(__file__),
-        "drain3.ini"
-    )
-    config.load(config_pth)
+    print(f"Loading Drain config from: {config_path}")
+    config.load(config_path)
     config.profiling_enabled = True
     template_miner = TemplateMiner(config=config)
 
     return template_miner
 
 
-def extract_templates(log_list: list, save_pth: str):
+def extract_templates(log_list: list, save_pth: str, config_path):
+    """
+    从日志列表中提取模板
+    
+    Args:
+        log_list (list): 日志消息列表
+        save_pth (str): 保存模型的路径
+        config_path (str): 配置文件路径（必须提供）
+        
+    Returns:
+        TemplateMiner: 训练后的模板挖掘器
+    """
     KEEP_TOP_N_TEMPLATE = 1000
 
-    miner = init_drain()
+    miner = init_drain(config_path=config_path)
 
-    for line in tqdm(log_list):
+    for line in tqdm(log_list, desc="Training Drain"):
         log_txt = line.rstrip()
         miner.add_log_message(log_txt)
     template_count = len(miner.drain.clusters)

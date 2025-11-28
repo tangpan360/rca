@@ -14,50 +14,8 @@ project_root = os.path.dirname(os.path.dirname(script_dir))
 extractor_path = os.path.join(project_root, 'extractor')
 sys.path.append(extractor_path)
 
-# Import Drain3 modules
-from drain3 import TemplateMiner
-from drain3.template_miner_config import TemplateMinerConfig
-import utils.io_util as io # 假设 Gaia 的 extract_templates 用了这个
-
-# 自定义 extract_templates 以支持自定义配置
-def extract_templates_custom_config(log_list: list, save_pth: str, config_path: str):
-    KEEP_TOP_N_TEMPLATE = 1000
-    
-    # 1. 初始化 Drain (加载自定义配置)
-    print(f"Loading Drain config from: {config_path}")
-    config = TemplateMinerConfig()
-    config.load(config_path)
-    config.profiling_enabled = True
-    miner = TemplateMiner(config=config)
-    
-    # 2. 训练
-    for line in tqdm(log_list, desc="Training Drain"):
-        log_txt = line.rstrip()
-        miner.add_log_message(log_txt)
-        
-    template_count = len(miner.drain.clusters)
-    print('The number of templates: {}'.format(template_count))
-    
-    # 3. 筛选 Top N
-    size_list = []
-    for cluster in miner.drain.clusters:
-        size_list.append(cluster.size)
-        
-    if not size_list:
-        print("Warning: No templates found.")
-        return miner
-        
-    size_list = sorted(size_list, reverse=True)[:KEEP_TOP_N_TEMPLATE]
-    min_size = size_list[-1]
-    
-    # (Optional) 可以在这里打印或保存筛选后的模板信息
-    
-    # 4. 保存模型
-    # 使用 pickle 保存 miner 对象 (Gaia 也是这么做的)
-    with open(save_pth, 'wb') as f:
-        pickle.dump(miner, f)
-        
-    return miner
+# Import 统一的 Drain 模块
+from drain.drain_template_extractor import extract_templates
 
 def parse_sn_log_timestamp(log_str):
     """
@@ -82,10 +40,10 @@ def process_sn_logs():
     print("=== 开始处理 SN 日志数据 (Custom Drain Config) ===")
     
     # 1. 配置路径
-    raw_data_dir = os.path.join(project_root, "preprocess/raw_data/sn/data")
-    label_path = os.path.join(project_root, "preprocess/processed_data/sn/label_sn.csv")
-    output_dir = os.path.join(project_root, "preprocess/processed_data/sn/log")
-    drain_model_dir = os.path.join(project_root, "preprocess/processed_data/sn/drain_models")
+    raw_data_dir = os.path.join(project_root, "preprocess", "raw_data", "sn", "data")
+    label_path = os.path.join(project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
+    output_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "log")
+    drain_model_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "drain_models")
     
     # 指定自定义 Drain 配置文件
     drain_config_path = os.path.join(script_dir, "sn_drain3.ini")
@@ -173,7 +131,7 @@ def process_sn_logs():
     # 5. 训练 Drain (使用自定义配置)
     drain_model_path = os.path.join(drain_model_dir, "sn_drain.pkl")
     
-    miner = extract_templates_custom_config(
+    miner = extract_templates(
         log_list=train_messages,
         save_pth=drain_model_path,
         config_path=drain_config_path

@@ -419,10 +419,15 @@ def train_drain_from_logs(log_dir, output_dir, anomaly_periods=None):
     # 使用drain训练模板
     print("\n开始训练drain模板...")
     drain_model_path = os.path.join(output_dir, "gaia_drain.pkl")
+    
+    # 获取Gaia配置文件路径
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    gaia_config_path = os.path.join(project_root, "preprocess", "gaia", "gaia_drain3.ini")
 
     miner = extract_templates(
         log_list=all_log_messages,
-        save_pth=drain_model_path
+        save_pth=drain_model_path,
+        config_path=gaia_config_path
     )
 
     # 保存模板信息

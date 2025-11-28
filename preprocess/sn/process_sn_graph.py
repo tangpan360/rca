@@ -107,7 +107,7 @@ def extract_edges(trace_df, nodes):
             
     return edges
 
-def extract_sn_graph(mode='dynamic'):
+def process_sn_graph(mode='dynamic'):
     print("=" * 60)
     print(f"开始提取 SN 图结构 (Mode: {mode.upper()})")
     print("=" * 60)
@@ -191,4 +191,4 @@ if __name__ == "__main__":
     parser.add_argument('--mode', default='dynamic', choices=['static', 'dynamic'])
     args = parser.parse_args()
     
-    extract_sn_graph(mode=args.mode)
+    process_sn_graph(mode=args.mode)
