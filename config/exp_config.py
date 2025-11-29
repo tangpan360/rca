@@ -61,7 +61,7 @@ class Config:
             self.aggregator = 'mean'
             # Gaia数据集维度配置
             self.metric_channels = 12
-            self.log_dim = 48
+            self.log_dim = get_log_template_count('gaia')
             self.seq_len = 20
             # Gaia数据集路径配置
             self.dataset_path = "./preprocess/processed_data/gaia/dataset.pkl"

@@ -1,9 +1,17 @@
 import os
+import sys
 import pickle
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from typing import Dict, Any
+
+# 添加项目根目录到路径，以便导入utils
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(script_dir))
+sys.path.append(project_root)
+
+from utils.template_utils import get_log_template_count
 
 # 全局定义：所有instance的固定顺序（用于所有模态）
 SERVICES = ['dbservice1', 'dbservice2', 'logservice1', 'logservice2', 
@@ -276,7 +284,7 @@ def _process_log_for_sample(st_time, ed_time, normalize=True):
     """
     # 使用全局定义的服务顺序
     num_instances = len(SERVICES)
-    num_templates = 48  # 固定48个template
+    num_templates = get_log_template_count('gaia')  # 动态获取模板数量
     
     # 初始化结果数组 [num_instances, num_templates]
     log_data = np.zeros((num_instances, num_templates))
