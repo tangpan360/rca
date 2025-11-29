@@ -22,7 +22,7 @@ METRIC_COLUMNS = [
 NUM_METRICS = len(METRIC_COLUMNS) # 7 (不包含timestamp)
 NUM_INSTANCES = len(SERVICES)
 NUM_TIME_STEPS = 10 # 10秒
-STEP_DURATION = 1   # 1秒 (根据用户指令，SN使用秒)
+STEP_DURATION = 1   # 1秒
 # Log Template 数量 (预留空间，实际为13，设为20以防万一)
 NUM_LOG_TEMPLATES = 13
 
@@ -416,4 +416,3 @@ if __name__ == "__main__":
         
     print(f"\nDataset saved to {out_path}")
     print(f"Total samples: {len(dataset)}")
-

@@ -10,8 +10,8 @@ def generate_sn_labels():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(script_dir))
     
-    input_dir = os.path.join(project_root, "preprocess/raw_data/sn/data")
-    output_dir = os.path.join(project_root, "preprocess/processed_data/sn")
+    input_dir = os.path.join(project_root, "preprocess", "raw_data", "sn", "data")
+    output_dir = os.path.join(project_root, "preprocess", "processed_data", "sn")
     
     # 如果输出目录不存在则创建
     if not os.path.exists(output_dir):
@@ -57,7 +57,7 @@ def generate_sn_labels():
             
             # 定义窗口参数
             window_size = 10
-            stride = 1
+            stride = 2
             
             # 定义数据集划分比例 (Train: 50%, Val: 20%, Test: 30%)
             # 对应的截止时间点 (相对于 start_ts)

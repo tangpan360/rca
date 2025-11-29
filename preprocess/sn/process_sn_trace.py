@@ -10,8 +10,8 @@ def process_sn_traces():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(script_dir))
     
-    raw_data_dir = os.path.join(project_root, "preprocess/raw_data/sn/data")
-    output_dir = os.path.join(project_root, "preprocess/processed_data/sn/trace")
+    raw_data_dir = os.path.join(project_root, "preprocess", "raw_data", "sn", "data")
+    output_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "trace")
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)

@@ -113,12 +113,12 @@ def process_sn_logs():
                 curr_start, curr_end = next_start, next_end
         merged_intervals.append((curr_start, curr_end))
     
-    is_train = np.zeros(len(logs_df), dtype=bool)
-    timestamps = logs_df['timestamp'].values
+    is_train = pd.Series(False, index=logs_df.index)
     for start, end in merged_intervals:
-        idx_start = np.searchsorted(timestamps, start, side='left')
-        idx_end = np.searchsorted(timestamps, end, side='right')
-        is_train[idx_start:idx_end] = True
+        # 找出当前训练时间段内的所有时间点
+        in_current_period = (logs_df['timestamp'] >= start) & (logs_df['timestamp'] <= end)
+        # 将这些时间点标记为训练集（True）
+        is_train.loc[in_current_period] = True
         
     train_logs_df = logs_df[is_train]
     train_messages = train_logs_df['message'].tolist()

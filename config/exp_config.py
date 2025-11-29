@@ -77,8 +77,8 @@ class Config:
             self.seq_len = 10
             # SN数据集路径配置
             self.dataset_path = "./preprocess/processed_data/sn/dataset.pkl"
-            self.nodes_path = "./preprocess/processed_data/sn/graph/nodes_dynamic_no_influence.json"
-            self.edges_path = "./preprocess/processed_data/sn/graph/edges_dynamic_no_influence.json"
+            self.nodes_path = "./preprocess/processed_data/sn/graph/nodes_static_no_influence.json"
+            self.edges_path = "./preprocess/processed_data/sn/graph/edges_static_no_influence.json"
         else:
             raise NotImplementedError()
     

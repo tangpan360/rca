@@ -113,10 +113,10 @@ def process_sn_graph(mode='dynamic'):
     print("=" * 60)
     
     # 路径
-    label_path = os.path.join(project_root, "preprocess/processed_data/sn/label_sn.csv")
-    metric_dir = os.path.join(project_root, "preprocess/processed_data/sn/metric")
-    trace_dir = os.path.join(project_root, "preprocess/processed_data/sn/trace")
-    output_dir = os.path.join(project_root, "preprocess/processed_data/sn/graph")
+    label_path = os.path.join(project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
+    metric_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "metric")
+    trace_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "trace")
+    output_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "graph")
     
     os.makedirs(output_dir, exist_ok=True)
     
@@ -188,7 +188,7 @@ def process_sn_graph(mode='dynamic'):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', default='dynamic', choices=['static', 'dynamic'])
+    parser.add_argument('--mode', default='static', choices=['static', 'dynamic'])
     args = parser.parse_args()
     
     process_sn_graph(mode=args.mode)

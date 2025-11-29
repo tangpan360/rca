@@ -9,9 +9,9 @@ def process_sn_metrics():
     script_dir = os.path.dirname(os.path.abspath(__file__))
     project_root = os.path.dirname(os.path.dirname(script_dir))
     
-    raw_data_dir = os.path.join(project_root, "preprocess/raw_data/sn/data")
-    label_path = os.path.join(project_root, "preprocess/processed_data/sn/label_sn.csv")
-    output_dir = os.path.join(project_root, "preprocess/processed_data/sn/metric")
+    raw_data_dir = os.path.join(project_root, "preprocess", "raw_data", "sn", "data")
+    label_path = os.path.join(project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
+    output_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "metric")
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
