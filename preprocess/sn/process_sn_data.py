@@ -1,9 +1,17 @@
 import os
+import sys
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from typing import Dict, Any
 import pickle
+
+# 添加项目根目录到路径，以便导入utils
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(script_dir))
+sys.path.append(project_root)
+
+from utils.template_utils import get_log_template_count
 
 # 1. 全局配置
 SERVICES = [
@@ -23,8 +31,8 @@ NUM_METRICS = len(METRIC_COLUMNS) # 7 (不包含timestamp)
 NUM_INSTANCES = len(SERVICES)
 NUM_TIME_STEPS = 10 # 10秒
 STEP_DURATION = 1   # 1秒
-# Log Template 数量 (预留空间，实际为13，设为20以防万一)
-NUM_LOG_TEMPLATES = 13
+# Log Template 数量 (动态获取)
+NUM_LOG_TEMPLATES = get_log_template_count('sn')
 
 # 全局缓存
 METRIC_DATA_CACHE = {}
@@ -78,7 +86,7 @@ def preload_all_data():
                 if 'timestamp' in df.columns and 'template_id' in df.columns:
                     LOG_DATA_CACHE[instance_name] = df[['timestamp', 'template_id']]
                 else:
-                     print(f"⚠️  Warning: {instance_name} log file missing columns. Found: {df.columns.tolist()}")
+                    print(f"⚠️  Warning: {instance_name} log file missing columns. Found: {df.columns.tolist()}")
             except Exception as e:
                 print(f"❌ Error reading {instance_name} log: {e}")
             

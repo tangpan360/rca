@@ -1,3 +1,5 @@
+from utils.template_utils import get_log_template_count
+
 class Config:
     def __init__(self, dataset) -> None:
         # base config
@@ -73,7 +75,7 @@ class Config:
             self.batch_size = 8
             # SN数据集维度配置
             self.metric_channels = 7
-            self.log_dim = 13
+            self.log_dim = get_log_template_count('sn')
             self.seq_len = 10
             # SN数据集路径配置
             self.dataset_path = "./preprocess/processed_data/sn/dataset.pkl"
