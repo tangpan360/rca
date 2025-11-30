@@ -38,7 +38,7 @@ def FTI_eval(output, target, k=5):
     res = {"pre": [], "rec": [], "f1": []}
     res['pre']=precision(output, target, k)
     res['rec']=recall(output, target, k)
-    res['f1']=2 * res['pre'] * res['rec'] / (res['pre'] + res['rec'])
+    res['f1']=f1score(output, target, k)
     return res
 
 
