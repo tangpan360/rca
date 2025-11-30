@@ -4,14 +4,38 @@ import glob
 import pandas as pd
 from datetime import datetime, timezone
 
-def generate_sn_labels():
-    # 定义相对于项目根目录的路径
-    # 假设脚本在项目根目录下运行，或基于 __file__ 使用绝对路径
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(script_dir))
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_script_dir))
+
+
+def _add_window_sample(fault_list, base_start_ts, offset, duration, service, fault_type, data_type):
+    """辅助函数：添加一个滑动窗口样本"""
+    # 时间戳加上8小时 (8 * 3600s)
+    time_shift = 8 * 3600
+    win_start_ts = base_start_ts + offset + time_shift
+    win_end_ts = win_start_ts + duration
     
-    input_dir = os.path.join(project_root, "preprocess", "raw_data", "sn", "data")
-    output_dir = os.path.join(project_root, "preprocess", "processed_data", "sn")
+    st_time_str = datetime.fromtimestamp(win_start_ts, timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')
+    ed_time_str = datetime.fromtimestamp(win_end_ts, timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')
+    date_str = datetime.fromtimestamp(win_start_ts, timezone.utc).strftime('%Y-%m-%d')
+    
+    row = {
+        'datetime': date_str,
+        'service': service,
+        'instance': service,
+        'anomaly_type': fault_type,
+        'st_time': st_time_str,
+        'st_timestamp': int(win_start_ts),
+        'ed_time': ed_time_str,
+        'ed_timestamp': int(win_end_ts),
+        'duration': duration,
+        'data_type': data_type
+    }
+    fault_list.append(row)
+
+def generate_sn_labels():
+    input_dir = os.path.join(_project_root, "preprocess", "raw_data", "sn", "data")
+    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn")
     
     # 如果输出目录不存在则创建
     if not os.path.exists(output_dir):
@@ -25,7 +49,6 @@ def generate_sn_labels():
         return
 
     all_faults = []
-    global_index = 0
     
     print(f"Found {len(label_files)} label files. Processing...")
     
@@ -77,17 +100,14 @@ def generate_sn_labels():
             # 1. Train
             for offset in range(0, split_1 - window_size + 1, stride):
                 _add_window_sample(all_faults, start_ts, offset, window_size, service_name, fault_type, 'train')
-                global_index += 1
                 
             # 2. Val
             for offset in range(split_1, split_2 - window_size + 1, stride):
                 _add_window_sample(all_faults, start_ts, offset, window_size, service_name, fault_type, 'val')
-                global_index += 1
                 
             # 3. Test
             for offset in range(split_2, duration - window_size + 1, stride):
                 _add_window_sample(all_faults, start_ts, offset, window_size, service_name, fault_type, 'test')
-                global_index += 1
             
     # 创建 DataFrame
     df = pd.DataFrame(all_faults)
@@ -112,31 +132,6 @@ def generate_sn_labels():
     print(df['data_type'].value_counts())
     print("\nFirst 5 samples:")
     print(df[['service', 'anomaly_type', 'st_time', 'duration', 'data_type']].head().to_string(index=False))
-
-def _add_window_sample(fault_list, base_start_ts, offset, duration, service, fault_type, data_type):
-    """辅助函数：添加一个滑动窗口样本"""
-    # 时间戳加上8小时 (8 * 3600s)
-    time_shift = 8 * 3600
-    win_start_ts = base_start_ts + offset + time_shift
-    win_end_ts = win_start_ts + duration
-    
-    st_time_str = datetime.fromtimestamp(win_start_ts, timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')
-    ed_time_str = datetime.fromtimestamp(win_end_ts, timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')
-    date_str = datetime.fromtimestamp(win_start_ts, timezone.utc).strftime('%Y-%m-%d')
-    
-    row = {
-        'datetime': date_str,
-        'service': service,
-        'instance': service,
-        'anomaly_type': fault_type,
-        'st_time': st_time_str,
-        'st_timestamp': int(win_start_ts),
-        'ed_time': ed_time_str,
-        'ed_timestamp': int(win_end_ts),
-        'duration': duration,
-        'data_type': data_type
-    }
-    fault_list.append(row)
 
 if __name__ == "__main__":
     generate_sn_labels()

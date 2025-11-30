@@ -4,14 +4,14 @@ import glob
 import numpy as np
 from tqdm import tqdm
 
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_script_dir))
+
 def process_sn_metrics():
     # 1. 路径配置
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(script_dir))
-    
-    raw_data_dir = os.path.join(project_root, "preprocess", "raw_data", "sn", "data")
-    label_path = os.path.join(project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
-    output_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "metric")
+    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "sn", "data")
+    label_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
+    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "metric")
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -22,7 +22,7 @@ def process_sn_metrics():
     # 3. 获取所有实验文件夹
     exp_folders = sorted([f for f in os.listdir(raw_data_dir) if f.startswith("SN.") and os.path.isdir(os.path.join(raw_data_dir, f))])
     
-    all_services = label_df['service'].unique()
+    all_services = sorted(label_df['service'].unique())
     print(f"正在处理 {len(all_services)} 个服务的指标数据...")
     
     # 4. 处理每个服务

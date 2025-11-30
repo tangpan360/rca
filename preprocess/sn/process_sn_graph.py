@@ -21,9 +21,9 @@ import json
 import glob
 
 # 添加项目路径
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(script_dir))
-sys.path.append(project_root)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_script_dir))
+sys.path.append(_project_root)
 
 from helper import io_util
 
@@ -113,10 +113,10 @@ def process_sn_graph(mode='dynamic'):
     print("=" * 60)
     
     # 路径
-    label_path = os.path.join(project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
-    metric_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "metric")
-    trace_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "trace")
-    output_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "graph")
+    label_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
+    metric_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "metric")
+    trace_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "trace")
+    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "graph")
     
     os.makedirs(output_dir, exist_ok=True)
     

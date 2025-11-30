@@ -4,14 +4,14 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_script_dir))
+
 def process_sn_traces():
     print("=== 开始处理 SN Trace 数据 ===")
     
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(os.path.dirname(script_dir))
-    
-    raw_data_dir = os.path.join(project_root, "preprocess", "raw_data", "sn", "data")
-    output_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "trace")
+    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "sn", "data")
+    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "trace")
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -49,11 +49,6 @@ def process_sn_traces():
             pid_to_service = {}
             for pid, p_info in processes.items():
                 s_name = p_info.get('serviceName', 'unknown')
-                # 处理前缀
-                if s_name.startswith("socialnetwork-"):
-                    s_name = s_name.replace("socialnetwork-", "")
-                if s_name.endswith("-1"):
-                    s_name = s_name[:-2]
 
                 pid_to_service[pid] = s_name
                 

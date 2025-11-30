@@ -9,10 +9,10 @@ import sys
 from datetime import datetime
 
 # 添加 extractor/drain 到路径
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(script_dir))
-extractor_path = os.path.join(project_root, 'extractor')
-sys.path.append(extractor_path)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_script_dir))
+_extractor_path = os.path.join(_project_root, 'extractor')
+sys.path.append(_extractor_path)
 
 # Import 统一的 Drain 模块
 from drain.drain_template_extractor import extract_templates
@@ -40,13 +40,13 @@ def process_sn_logs():
     print("=== 开始处理 SN 日志数据 (Custom Drain Config) ===")
     
     # 1. 配置路径
-    raw_data_dir = os.path.join(project_root, "preprocess", "raw_data", "sn", "data")
-    label_path = os.path.join(project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
-    output_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "log")
-    drain_model_dir = os.path.join(project_root, "preprocess", "processed_data", "sn", "drain_models")
+    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "sn", "data")
+    label_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
+    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "log")
+    drain_model_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "drain_models")
     
     # 指定自定义 Drain 配置文件
-    drain_config_path = os.path.join(script_dir, "sn_drain3.ini")
+    drain_config_path = os.path.join(_script_dir, "sn_drain3.ini")
     
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(drain_model_dir, exist_ok=True)
@@ -81,11 +81,7 @@ def process_sn_logs():
             
         for raw_service, log_list in logs_dict.items():
             service = raw_service
-            if service.startswith("socialnetwork-"):
-                service = service.replace("socialnetwork-", "")
-            if service.endswith("-1"):
-                service = service[:-2]
-                
+            
             for log_msg in log_list:
                 ts = parse_sn_log_timestamp(log_msg)
                 if ts is not None:
