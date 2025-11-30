@@ -314,18 +314,28 @@ def _process_trace_for_sample(st_time, ed_time, normalize=True):
     availability = not np.all(np.isnan(trace_data))
     
     if normalize and NORMALIZATION_STATS['trace']:
+        # 对所有服务进行处理
         for instance_idx in range(NUM_INSTANCES):
-            stats = NORMALIZATION_STATS['trace'][instance_idx]
-            # Duration: Fill Mean -> Normalize
-            nan_mask_0 = np.isnan(trace_data[instance_idx, :, 0])
-            if nan_mask_0.any():
-                trace_data[instance_idx, :, 0][nan_mask_0] = stats['mean']
-            trace_data[instance_idx, :, 0] = (trace_data[instance_idx, :, 0] - stats['mean']) / stats['std']
+            instance_name = SERVICES[instance_idx]
             
-            # ErrorRate: Fill 0 -> No Normalize
-            nan_mask_1 = np.isnan(trace_data[instance_idx, :, 1])
-            if nan_mask_1.any():
-                trace_data[instance_idx, :, 1][nan_mask_1] = 0.0
+            if instance_name in TRACE_DATA_CACHE:
+                # 有 trace 数据的服务：正常归一化
+                stats = NORMALIZATION_STATS['trace'][instance_idx]  # 使用服务索引，不是trace索引
+                
+                # Duration: Fill Mean -> Normalize
+                nan_mask_0 = np.isnan(trace_data[instance_idx, :, 0])
+                if nan_mask_0.any():
+                    trace_data[instance_idx, :, 0][nan_mask_0] = stats['mean']
+                trace_data[instance_idx, :, 0] = (trace_data[instance_idx, :, 0] - stats['mean']) / stats['std']
+                
+                # ErrorRate: Fill 0 -> No Normalize
+                nan_mask_1 = np.isnan(trace_data[instance_idx, :, 1])
+                if nan_mask_1.any():
+                    trace_data[instance_idx, :, 1][nan_mask_1] = 0.0
+            else:
+                # 没有 trace 数据的服务：填充默认值（表示无调用活动）
+                trace_data[instance_idx, :, 0] = 0.0  # Duration 填充0（表示无调用）
+                trace_data[instance_idx, :, 1] = 0.0  # Error Rate 填充0（表示无错误）
                 
     return trace_data, availability
 

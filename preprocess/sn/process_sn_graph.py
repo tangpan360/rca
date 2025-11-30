@@ -6,7 +6,7 @@
 - 生成nodes（服务列表）和edges（依赖关系）
 
 支持三种提取模式：
-1. Predefined Static模式（默认）：使用Eadro预定义的固定边
+1. Predefined Static模式（默认）：使用预定义的固定边
 2. Dynamic模式：每个故障案例单独从Trace提取edges
 3. Static模式：所有案例共享从全量Trace提取的全局edges
 
