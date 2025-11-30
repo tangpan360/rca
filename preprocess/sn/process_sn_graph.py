@@ -121,9 +121,9 @@ PREDEFINED_SN_EDGES = {
     "nginx-web-server": ["compose-post-service", "home-timeline-service", "nginx-web-server", "social-graph-service", "user-service"]
 }
 
-# 预定义的 SN 节点顺序 (关键！必须与预定义边保持一致)
-PREDEFINED_SN_NODES = ['social-graph-service', 'compose-post-service', 'post-storage-service', 'user-timeline-service', 'url-shorten-service', 'user-service',
-                        'media-service', 'text-service', 'unique-id-service', 'user-mention-service', 'home-timeline-service', "nginx-web-server"]
+# 预定义的 SN 节点顺序 (字母排序)
+PREDEFINED_SN_NODES = ['compose-post-service', 'home-timeline-service', 'media-service', 'nginx-web-server', 'post-storage-service', 'social-graph-service', 
+                        'text-service', 'unique-id-service', 'url-shorten-service', 'user-mention-service', 'user-service', 'user-timeline-service', 'user-mention-service']
 
 def convert_predefined_edges_to_indices(predefined_edges, nodes):
     """
@@ -172,7 +172,7 @@ def process_sn_graph(mode='dynamic'):
     if mode == 'predefined_static':
         # 使用预定义的边和节点顺序
         print("Building Predefined Fixed Graph...")
-        nodes = PREDEFINED_SN_NODES  # 使用预定义的节点顺序！
+        nodes = PREDEFINED_SN_NODES  # 使用预定义的字母顺序
         global_edges = convert_predefined_edges_to_indices(PREDEFINED_SN_EDGES, nodes)
         print(f"Predefined Edges ({len(global_edges)})")
         
