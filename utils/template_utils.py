@@ -15,6 +15,10 @@ def get_log_template_count(dataset):
     Returns:
         int: 模板数量
     """
+    # 获取项目根目录 (utils的上级目录)
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+    _project_root = os.path.dirname(_script_dir)
+    
     template_files = {
         'sn': 'sn_templates.csv',
         'tt': 'tt_templates.csv', 
@@ -22,7 +26,7 @@ def get_log_template_count(dataset):
     }
     
     template_csv_path = os.path.join(
-        "preprocess", "processed_data", dataset, 
+        _project_root, "preprocess", "processed_data", dataset, 
         "drain_models", template_files[dataset]
     )
     
