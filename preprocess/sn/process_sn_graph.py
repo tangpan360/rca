@@ -5,9 +5,10 @@
 - 从metric文件名提取服务-节点映射关系 (SN: service==node)
 - 生成nodes（服务列表）和edges（依赖关系）
 
-支持两种提取模式：
-1. Dynamic模式（默认）：每个故障案例单独提取edges
-2. Static模式：所有案例共享全局edges
+支持三种提取模式：
+1. Predefined Static模式（默认）：使用Eadro预定义的固定边
+2. Dynamic模式：每个故障案例单独从Trace提取edges
+3. Static模式：所有案例共享从全量Trace提取的全局edges
 
 注意：SN 数据集缺乏 Host 信息，因此默认不包含同节点影响边。
 """
@@ -107,6 +108,39 @@ def extract_edges(trace_df, nodes):
             
     return edges
 
+# 预定义的 SN 边信息
+PREDEFINED_SN_EDGES = {
+    "compose-post-service": ["compose-post-service", "home-timeline-service", "media-service", "post-storage-service", 
+                            "text-service", "unique-id-service", "user-service", "user-timeline-service"],
+    "home-timeline-service":["home-timeline-service", "post-storage-service", "social-graph-service"],
+    "post-storage-service": ["post-storage-service"],
+    "social-graph-service": ["social-graph-service", "user-service"],
+    "text-service": ["text-service", "url-shorten-service", "user-mention-service"],
+    "user-service": ["user-service"],
+    "user-timeline-service": ["user-timeline-service"],
+    "nginx-web-server": ["compose-post-service", "home-timeline-service", "nginx-web-server", "social-graph-service", "user-service"]
+}
+
+# 预定义的 SN 节点顺序 (关键！必须与预定义边保持一致)
+PREDEFINED_SN_NODES = ['social-graph-service', 'compose-post-service', 'post-storage-service', 'user-timeline-service', 'url-shorten-service', 'user-service',
+                        'media-service', 'text-service', 'unique-id-service', 'user-mention-service', 'home-timeline-service', "nginx-web-server"]
+
+def convert_predefined_edges_to_indices(predefined_edges, nodes):
+    """
+    将预定义的边转换为索引对
+    """
+    edges = []
+    for src_service, dst_services in predefined_edges.items():
+        if src_service not in nodes:
+            continue
+        src_idx = nodes.index(src_service)
+        
+        for dst_service in dst_services:
+            if dst_service in nodes:
+                dst_idx = nodes.index(dst_service)
+                edges.append([src_idx, dst_idx])
+    return edges
+
 def process_sn_graph(mode='dynamic'):
     print("=" * 60)
     print(f"开始提取 SN 图结构 (Mode: {mode.upper()})")
@@ -123,8 +157,10 @@ def process_sn_graph(mode='dynamic'):
     # 1. 提取 Nodes
     nodes = extract_nodes_from_metric(metric_dir)
     
-    # 2. 加载并预处理 Trace (获取全量调用关系)
-    all_calls_df = load_all_trace_data(trace_dir)
+    # 2. 加载 Trace 数据 (仅在非 predefined_static 模式下需要)
+    all_calls_df = pd.DataFrame()
+    if mode != 'predefined_static':
+        all_calls_df = load_all_trace_data(trace_dir)
     
     # 3. 提取图结构
     nodes_dict = {}
@@ -133,8 +169,20 @@ def process_sn_graph(mode='dynamic'):
     label_df = pd.read_csv(label_path)
     print(f"处理 {len(label_df)} 个样本...")
     
-    if mode == 'static':
-        # Static: 全局共享 Edges
+    if mode == 'predefined_static':
+        # 使用预定义的边和节点顺序
+        print("Building Predefined Fixed Graph...")
+        nodes = PREDEFINED_SN_NODES  # 使用预定义的节点顺序！
+        global_edges = convert_predefined_edges_to_indices(PREDEFINED_SN_EDGES, nodes)
+        print(f"Predefined Edges ({len(global_edges)})")
+        
+        for _, row in tqdm(label_df.iterrows(), total=len(label_df)):
+            sample_id = row['index']
+            nodes_dict[sample_id] = nodes
+            edges_dict[sample_id] = global_edges
+            
+    elif mode == 'static':
+        # Static: 全局共享 Edges (从 Trace 提取)
         print("Building Static Graph...")
         global_edges = extract_edges(all_calls_df, nodes)
         print(f"Global Edges ({len(global_edges)}): {global_edges}")
@@ -188,7 +236,7 @@ def process_sn_graph(mode='dynamic'):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mode', default='static', choices=['static', 'dynamic'])
+    parser.add_argument('--mode', default='predefined_static', choices=['static', 'dynamic', 'predefined_static'])
     args = parser.parse_args()
     
     process_sn_graph(mode=args.mode)
