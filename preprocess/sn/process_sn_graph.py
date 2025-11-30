@@ -123,7 +123,7 @@ PREDEFINED_SN_EDGES = {
 
 # 预定义的 SN 节点顺序 (字母排序)
 PREDEFINED_SN_NODES = ['compose-post-service', 'home-timeline-service', 'media-service', 'nginx-web-server', 'post-storage-service', 'social-graph-service', 
-                        'text-service', 'unique-id-service', 'url-shorten-service', 'user-mention-service', 'user-service', 'user-timeline-service', 'user-mention-service']
+                        'text-service', 'unique-id-service', 'url-shorten-service', 'user-mention-service', 'user-service', 'user-timeline-service']
 
 def convert_predefined_edges_to_indices(predefined_edges, nodes):
     """
