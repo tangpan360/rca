@@ -81,6 +81,20 @@ class Config:
             self.dataset_path = "./preprocess/processed_data/sn/dataset.pkl"
             self.nodes_path = "./preprocess/processed_data/sn/graph/nodes_predefined_static_no_influence.json"
             self.edges_path = "./preprocess/processed_data/sn/graph/edges_predefined_static_no_influence.json"
+        elif self.dataset == 'tt':
+            self.feat_drop = 0
+            self.patience = 10
+            self.ft_num = 27  # TT有27个服务
+            self.aggregator = 'mean'
+            self.batch_size = 8
+            # TT数据集维度配置
+            self.metric_channels = 7
+            self.log_dim = get_log_template_count('tt')
+            self.seq_len = 10
+            # TT数据集路径配置
+            self.dataset_path = "./preprocess/processed_data/tt/dataset.pkl"
+            self.nodes_path = "./preprocess/processed_data/tt/graph/nodes_predefined_static_no_influence.json"
+            self.edges_path = "./preprocess/processed_data/tt/graph/edges_predefined_static_no_influence.json"
         else:
             raise NotImplementedError()
     

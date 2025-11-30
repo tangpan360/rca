@@ -17,36 +17,36 @@ sys.path.append(_extractor_path)
 # Import 统一的 Drain 模块
 from drain.drain_template_extractor import extract_templates
 
-def parse_sn_log_timestamp(log_str):
+def parse_tt_log_timestamp(log_str):
     """
-    解析 SN 日志时间戳
-    格式: [2022-Apr-17 10:12:50.490796]
+    解析 TT 日志时间戳
+    格式: 2022-04-18 12:39:05.724
     """
-    pattern = r"\[(\d{4}-[A-Za-z]{3}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\]"
+    pattern = r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)"
     match = re.search(pattern, log_str)
     if not match:
         return None
     
     time_str = match.group(1)
     try:
-        # 解析时间字符串 (包含英文月份)
-        dt = pd.to_datetime(time_str, format="%Y-%b-%d %H:%M:%S.%f", utc=True)
+        # 解析时间字符串 (标准格式)
+        dt = pd.to_datetime(time_str, format="%Y-%m-%d %H:%M:%S.%f", utc=True)
         ts = dt.timestamp()
         return ts
     except Exception as e:
         return None
 
-def process_sn_logs():
-    print("=== 开始处理 SN 日志数据 (Custom Drain Config) ===")
+def process_tt_logs():
+    print("=== 开始处理 TT 日志数据 (Custom Drain Config) ===")
     
     # 1. 配置路径
-    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "sn", "data")
-    label_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "log")
-    drain_model_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "drain_models")
+    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "tt", "data")
+    label_path = os.path.join(_project_root, "preprocess", "processed_data", "tt", "label_tt.csv")
+    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "tt", "log")
+    drain_model_dir = os.path.join(_project_root, "preprocess", "processed_data", "tt", "drain_models")
     
     # 指定自定义 Drain 配置文件
-    drain_config_path = os.path.join(_script_dir, "sn_drain3.ini")
+    drain_config_path = os.path.join(_script_dir, "tt_drain3.ini")
     
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(drain_model_dir, exist_ok=True)
@@ -64,7 +64,7 @@ def process_sn_logs():
         train_intervals.append((st, ed))
     
     # 3. 收集所有日志
-    exp_folders = sorted([f for f in os.listdir(raw_data_dir) if f.startswith("SN.") and os.path.isdir(os.path.join(raw_data_dir, f))])
+    exp_folders = sorted([f for f in os.listdir(raw_data_dir) if f.startswith("TT.") and os.path.isdir(os.path.join(raw_data_dir, f))])
     all_logs = [] 
     
     print(f"正在解析 {len(exp_folders)} 个实验文件夹中的日志...")
@@ -83,7 +83,7 @@ def process_sn_logs():
             service = raw_service
             
             for log_msg in log_list:
-                ts = parse_sn_log_timestamp(log_msg)
+                ts = parse_tt_log_timestamp(log_msg)
                 if ts is not None:
                     all_logs.append({
                         'timestamp': ts,
@@ -125,7 +125,7 @@ def process_sn_logs():
         return
 
     # 5. 训练 Drain (使用自定义配置)
-    drain_model_path = os.path.join(drain_model_dir, "sn_drain.pkl")
+    drain_model_path = os.path.join(drain_model_dir, "tt_drain.pkl")
     
     miner = extract_templates(
         log_list=train_messages,
@@ -134,7 +134,7 @@ def process_sn_logs():
     )
     
     # 保存模板统计
-    template_csv_path = os.path.join(drain_model_dir, "sn_templates.csv")
+    template_csv_path = os.path.join(drain_model_dir, "tt_templates.csv")
     sorted_clusters = sorted(miner.drain.clusters, key=lambda it: it.size, reverse=True)
     template_data = {
         'template_id': [c.cluster_id for c in sorted_clusters],
@@ -170,4 +170,4 @@ def process_sn_logs():
     print("=== 完成 ===")
 
 if __name__ == "__main__":
-    process_sn_logs()
+    process_tt_logs()

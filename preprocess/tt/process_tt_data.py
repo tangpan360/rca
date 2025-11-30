@@ -15,10 +15,13 @@ from utils.template_utils import get_log_template_count
 
 # 1. 全局配置
 SERVICES = [
-    'compose-post-service', 'home-timeline-service', 'media-service', 
-    'nginx-web-server', 'post-storage-service', 'social-graph-service', 
-    'text-service', 'unique-id-service', 'url-shorten-service', 
-    'user-mention-service', 'user-service', 'user-timeline-service'
+    'ts-assurance-service', 'ts-auth-service', 'ts-basic-service', 'ts-cancel-service', 
+    'ts-config-service', 'ts-contacts-service', 'ts-food-map-service', 'ts-food-service', 
+    'ts-inside-payment-service', 'ts-notification-service', 'ts-order-other-service', 
+    'ts-order-service', 'ts-payment-service', 'ts-preserve-service', 'ts-price-service', 
+    'ts-route-plan-service', 'ts-route-service', 'ts-seat-service', 'ts-security-service', 
+    'ts-station-service', 'ts-ticketinfo-service', 'ts-train-service', 'ts-travel-plan-service', 
+    'ts-travel-service', 'ts-travel2-service', 'ts-user-service', 'ts-verification-code-service'
 ]
 
 # Metric 列名 (从CSV确认)
@@ -32,7 +35,7 @@ NUM_INSTANCES = len(SERVICES)
 NUM_TIME_STEPS = 10 # 10秒
 STEP_DURATION = 1   # 1秒
 # Log Template 数量 (动态获取)
-NUM_LOG_TEMPLATES = get_log_template_count('sn')
+NUM_LOG_TEMPLATES = get_log_template_count('tt')
 
 # 全局缓存
 METRIC_DATA_CACHE = {}
@@ -49,15 +52,15 @@ NORMALIZATION_STATS = {
 def preload_all_data():
     """
     预加载所有模态的数据到内存
-    注意：SN数据的时间戳已经是秒(int/float)，不需要像Gaia那样除以10**6，也不需要乘1000
+    注意：TT数据的时间戳已经是秒(int/float)，不需要像Gaia那样除以10**6，也不需要乘1000
     """
     print("=" * 50)
-    print("开始预加载所有 SN 数据到内存...")
+    print("开始预加载所有 TT 数据到内存...")
     print("=" * 50)
     
     # 1. Metric
     print("\n[1/3] 加载 Metric 数据...")
-    metric_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'sn', 'metric')
+    metric_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'tt', 'metric')
     for instance_name in tqdm(SERVICES, desc="Metric"):
         fpath = os.path.join(metric_dir, f"{instance_name}_metric.csv")
         if os.path.exists(fpath):
@@ -71,7 +74,7 @@ def preload_all_data():
     
     # 2. Log
     print("\n[2/3] 加载 Log 数据...")
-    log_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'sn', 'log')
+    log_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'tt', 'log')
     for instance_name in tqdm(SERVICES, desc="Log"):
         fpath = os.path.join(log_dir, f"{instance_name}_log.csv")
         if os.path.exists(fpath):
@@ -89,7 +92,7 @@ def preload_all_data():
             
     # 3. Trace
     print("\n[3/3] 加载 Trace 数据...")
-    trace_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'sn', 'trace')
+    trace_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'tt', 'trace')
     for instance_name in tqdm(SERVICES, desc="Trace"):
         fpath = os.path.join(trace_dir, f"{instance_name}_trace.csv")
         if os.path.exists(fpath):
@@ -314,18 +317,28 @@ def _process_trace_for_sample(st_time, ed_time, normalize=True):
     availability = not np.all(np.isnan(trace_data))
     
     if normalize and NORMALIZATION_STATS['trace']:
+        # 对所有服务进行处理
         for instance_idx in range(NUM_INSTANCES):
-            stats = NORMALIZATION_STATS['trace'][instance_idx]
-            # Duration: Fill Mean -> Normalize
-            nan_mask_0 = np.isnan(trace_data[instance_idx, :, 0])
-            if nan_mask_0.any():
-                trace_data[instance_idx, :, 0][nan_mask_0] = stats['mean']
-            trace_data[instance_idx, :, 0] = (trace_data[instance_idx, :, 0] - stats['mean']) / stats['std']
+            instance_name = SERVICES[instance_idx]
             
-            # ErrorRate: Fill 0 -> No Normalize
-            nan_mask_1 = np.isnan(trace_data[instance_idx, :, 1])
-            if nan_mask_1.any():
-                trace_data[instance_idx, :, 1][nan_mask_1] = 0.0
+            if instance_name in TRACE_DATA_CACHE:
+                # 有 trace 数据的服务：正常归一化
+                stats = NORMALIZATION_STATS['trace'][instance_idx]  # 使用服务索引，不是trace索引
+                
+                # Duration: Fill Mean -> Normalize
+                nan_mask_0 = np.isnan(trace_data[instance_idx, :, 0])
+                if nan_mask_0.any():
+                    trace_data[instance_idx, :, 0][nan_mask_0] = stats['mean']
+                trace_data[instance_idx, :, 0] = (trace_data[instance_idx, :, 0] - stats['mean']) / stats['std']
+                
+                # ErrorRate: Fill 0 -> No Normalize
+                nan_mask_1 = np.isnan(trace_data[instance_idx, :, 1])
+                if nan_mask_1.any():
+                    trace_data[instance_idx, :, 1][nan_mask_1] = 0.0
+            else:
+                # 没有 trace 数据的服务：填充默认值（表示无调用活动）
+                trace_data[instance_idx, :, 0] = 0.0  # Duration 填充0（表示无调用）
+                trace_data[instance_idx, :, 1] = 0.0  # Error Rate 填充0（表示无错误）
                 
     return trace_data, availability
 
@@ -387,14 +400,14 @@ def process_all_sample(label_df) -> Dict[int, Dict[str, Any]]:
     return processed_data
 
 if __name__ == "__main__":
-    label_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
+    label_path = os.path.join(_project_root, "preprocess", "processed_data", "tt", "label_tt.csv")
     label_df = pd.read_csv(label_path)
     
     # 1. Preload
     preload_all_data()
     
     # 2. Stats
-    stats_file = os.path.join(_project_root, "preprocess", "processed_data", "sn", "sn_norm_stats.pkl")
+    stats_file = os.path.join(_project_root, "preprocess", "processed_data", "tt", "tt_norm_stats.pkl")
     if os.path.exists(stats_file):
         print(f"Loading stats from {stats_file}")
         with open(stats_file, 'rb') as f:
@@ -412,7 +425,7 @@ if __name__ == "__main__":
     dataset = process_all_sample(label_df)
     
     # 4. Save
-    out_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "dataset.pkl")
+    out_path = os.path.join(_project_root, "preprocess", "processed_data", "tt", "dataset.pkl")
     with open(out_path, 'wb') as f:
         pickle.dump(dataset, f)
         

@@ -33,16 +33,16 @@ def _add_window_sample(fault_list, base_start_ts, offset, duration, service, fau
     }
     fault_list.append(row)
 
-def generate_sn_labels():
-    input_dir = os.path.join(_project_root, "preprocess", "raw_data", "sn", "data")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn")
+def generate_tt_labels():
+    input_dir = os.path.join(_project_root, "preprocess", "raw_data", "tt", "data")
+    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "tt")
     
     # 如果输出目录不存在则创建
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         print(f"Created directory: {output_dir}")
         
-    label_files = sorted(glob.glob(os.path.join(input_dir, "SN.fault-*.json")))
+    label_files = sorted(glob.glob(os.path.join(input_dir, "TT.fault-*.json")))
     
     if not label_files:
         print(f"Error: No label files found in {input_dir}")
@@ -64,37 +64,34 @@ def generate_sn_labels():
             duration = fault['duration']
             end_ts = start_ts + duration
             
-            # 映射服务名称: "socialnetwork-text-service-1" -> "text-service"
-            # 逻辑: 移除 "socialnetwork-" 前缀和 "-1" 后缀
-            # 注意潜在的变体，但基于分析它们是一致的
-            service_name = raw_name.replace("socialnetwork-", "")
-            if service_name.endswith("-1"):
+            # 映射服务名称: "dockercomposemanifests_ts-food-service_1" -> "ts-food-service"
+            # 逻辑: 移除 "dockercomposemanifests_" 前缀和 "_1" 后缀
+            service_name = raw_name
+            if service_name.startswith("dockercomposemanifests_"):
+                service_name = service_name[len("dockercomposemanifests_"):]
+            if service_name.endswith("_1"):
                 service_name = service_name[:-2]
             
-            # 特殊映射: 将 Label 中的非标准名映射为 Metric/Trace 中的标准名
-            service_mapping = {
-                "nginx-thrift": "nginx-web-server"
-            }
-            if service_name in service_mapping:
-                service_name = service_mapping[service_name]
+            # TT数据集不需要特殊映射
             
             # 定义窗口参数
             window_size = 10
-            stride = 2
+            stride = 12
             
             # 定义数据集划分比例 (Train: 50%, Val: 20%, Test: 30%)
             # 对应的截止时间点 (相对于 start_ts)
-            # Train: [0, 60)
-            # Val:   [60, 84)
-            # Test:  [84, 120]
+            # TT故障持续600秒
+            # Train: [0, 300)
+            # Val:   [300, 420)
+            # Test:  [420, 600]
             
             # 确保区间不重叠的有效起始时间计算
             # Train Valid Start: [0, split_1 - window_size]
             # Val Valid Start:   [split_1, split_2 - window_size]
             # Test Valid Start:  [split_2, duration - window_size]
             
-            split_1 = int(duration * 0.5)  # 60s
-            split_2 = int(duration * 0.7)  # 84s
+            split_1 = int(duration * 0.5)  # 300s
+            split_2 = int(duration * 0.7)  # 420s
             
             # 生成滑动窗口样本
             # 1. Train
@@ -123,7 +120,7 @@ def generate_sn_labels():
     df = df[cols]
     
     # 保存为 CSV
-    output_path = os.path.join(output_dir, "label_sn.csv")
+    output_path = os.path.join(output_dir, "label_tt.csv")
     df.to_csv(output_path, index=False)
     
     print(f"Successfully generated {output_path}")
@@ -134,4 +131,4 @@ def generate_sn_labels():
     print(df[['service', 'anomaly_type', 'st_time', 'duration', 'data_type']].head().to_string(index=False))
 
 if __name__ == "__main__":
-    generate_sn_labels()
+    generate_tt_labels()

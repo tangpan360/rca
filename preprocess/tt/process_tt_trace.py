@@ -7,17 +7,17 @@ from tqdm import tqdm
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_script_dir))
 
-def process_sn_traces():
-    print("=== 开始处理 SN Trace 数据 ===")
+def process_tt_traces():
+    print("=== 开始处理 TT Trace 数据 ===")
     
-    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "sn", "data")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "trace")
+    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "tt", "data")
+    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "tt", "trace")
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
     # 收集所有实验文件夹
-    exp_folders = sorted([f for f in os.listdir(raw_data_dir) if f.startswith("SN.") and os.path.isdir(os.path.join(raw_data_dir, f))])
+    exp_folders = sorted([f for f in os.listdir(raw_data_dir) if f.startswith("TT.") and os.path.isdir(os.path.join(raw_data_dir, f))])
     
     # 暂存所有 Span 数据： {service_name: [span_records]}
     # 考虑到内存，我们可能需要分批处理，但这里先尝试一次性处理，如果内存不足再优化
@@ -130,8 +130,8 @@ def process_sn_traces():
         save_path = os.path.join(output_dir, f"{service}_trace.csv")
         df.to_csv(save_path, index=False)
         
-    print("=== SN Trace 处理完成 ===")
+    print("=== TT Trace 处理完成 ===")
 
 if __name__ == "__main__":
-    process_sn_traces()
+    process_tt_traces()
 
