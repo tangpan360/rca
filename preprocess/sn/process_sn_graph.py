@@ -154,8 +154,15 @@ def process_sn_graph(mode='dynamic'):
     
     os.makedirs(output_dir, exist_ok=True)
     
-    # 1. 提取 Nodes
-    nodes = extract_nodes_from_metric(metric_dir)
+    # 1. 根据模式决定节点获取方式
+    if mode == 'predefined_static':
+        # 预定义模式：使用预定义的节点
+        nodes = PREDEFINED_SN_NODES
+        print(f"使用预定义节点 ({len(nodes)} 个): {nodes}")
+    else:
+        # 数据驱动模式：从 metric 文件夹提取节点
+        nodes = extract_nodes_from_metric(metric_dir)
+        print(f"从数据提取节点 ({len(nodes)} 个): {nodes}")
     
     # 2. 加载 Trace 数据 (仅在非 predefined_static 模式下需要)
     all_calls_df = pd.DataFrame()
@@ -170,9 +177,8 @@ def process_sn_graph(mode='dynamic'):
     print(f"处理 {len(label_df)} 个样本...")
     
     if mode == 'predefined_static':
-        # 使用预定义的边和节点顺序
+        # 使用预定义的边（节点已在上面设置）
         print("Building Predefined Fixed Graph...")
-        nodes = PREDEFINED_SN_NODES  # 使用预定义的字母顺序
         global_edges = convert_predefined_edges_to_indices(PREDEFINED_SN_EDGES, nodes)
         print(f"Predefined Edges ({len(global_edges)})")
         
