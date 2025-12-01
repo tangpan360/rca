@@ -3,9 +3,9 @@ import random
 import torch
 import numpy as np
 from config.exp_config import Config
-from helper.logger import get_logger
+from utils.logger import get_logger
 from core.TVDiagEadro import TVDiagEadro
-from helper.Result import Result
+from utils.Result import Result
 from process.DatasetProcess import DatasetProcess
 import warnings
 warnings.filterwarnings('ignore')

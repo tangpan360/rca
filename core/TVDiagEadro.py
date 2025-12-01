@@ -11,9 +11,9 @@ import numpy as np
 from core.ita import cal_task_affinity
 from core.loss.AutomaticWeightedLoss import AutomaticWeightedLoss
 from core.model.MainModelEadro import MainModelEadro
-from helper.eval import *
-from helper.early_stop import EarlyStopping
-from helper.Result import Result
+from utils.eval import *
+from utils.early_stop import EarlyStopping
+from utils.Result import Result
 from config.exp_config import Config
 
 

@@ -50,7 +50,7 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_script_dir))
 sys.path.append(_project_root)
 
-from helper import io_util
+from utils import io_util
 
 
 def add_parent_name_to_trace(trace_df):
