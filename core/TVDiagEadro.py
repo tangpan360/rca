@@ -8,7 +8,6 @@ import random
 import dgl
 import numpy as np
 
-from core.ita import cal_task_affinity
 from core.loss.AutomaticWeightedLoss import AutomaticWeightedLoss
 from core.model.MainModelEadro import MainModelEadro
 from utils.eval import *
