@@ -7,9 +7,9 @@ from tqdm import tqdm
 from typing import Dict, Any
 
 # 添加项目根目录到路径，以便导入utils
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(script_dir))
-sys.path.append(project_root)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_script_dir))
+sys.path.append(_project_root)
 
 from utils.template_utils import get_log_template_count
 
@@ -35,15 +35,13 @@ def preload_all_data():
     """
     预加载所有模态的数据到内存
     """
-    project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    
     print("=" * 50)
     print("开始预加载所有数据到内存...")
     print("=" * 50)
     
     # 1. 预加载 Metric 数据
     print("\n[1/3] 加载 Metric 数据...")
-    metric_data_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'metric')
+    metric_data_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'metric')
     for instance_name in tqdm(SERVICES, desc="Metric"):
         metric_file = os.path.join(metric_data_dir, f"{instance_name}_metric.csv")
         if os.path.exists(metric_file):
@@ -53,7 +51,7 @@ def preload_all_data():
     
     # 2. 预加载 Log 数据
     print("\n[2/3] 加载 Log 数据...")
-    log_data_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'log')
+    log_data_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'log')
     for instance_name in tqdm(SERVICES, desc="Log"):
         log_file = os.path.join(log_data_dir, f"{instance_name}_log.csv")
         if os.path.exists(log_file):
@@ -64,7 +62,7 @@ def preload_all_data():
     
     # 3. 预加载 Trace 数据
     print("\n[3/3] 加载 Trace 数据 (包含status_code)...")
-    trace_data_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'trace')
+    trace_data_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'trace')
     for instance_name in tqdm(SERVICES, desc="Trace"):
         trace_file = os.path.join(trace_data_dir, f"{instance_name}_trace.csv")
         if os.path.exists(trace_file):
@@ -485,15 +483,14 @@ def process_all_sample(label_df) -> Dict[int, Dict[str, Any]]:
 
 
 if __name__ == "__main__":    
-    project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    label_file = os.path.join(project_dir, "preprocess", "raw_data", "gaia", "label_gaia.csv")
+    label_file = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "label_gaia.csv")
     label_df = pd.read_csv(label_file)
     
     # 1. 预加载所有数据到内存
     preload_all_data()
     
     # 2. 计算或加载归一化统计信息
-    stats_file = os.path.join(project_dir, "preprocess", "processed_data", "gaia", "norm_stats.pkl")
+    stats_file = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "norm_stats.pkl")
     
     if os.path.exists(stats_file):
         print(f"\n📂 加载归一化统计: {stats_file}")
@@ -515,7 +512,7 @@ if __name__ == "__main__":
     processed_data = process_all_sample(label_df)
     
     # 4. 保存处理后的数据
-    output_file = os.path.join(project_dir, "preprocess", "processed_data", "gaia", "dataset.pkl")
+    output_file = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "dataset.pkl")
     with open(output_file, 'wb') as f:
         pickle.dump(processed_data, f)
     

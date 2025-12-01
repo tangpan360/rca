@@ -46,8 +46,9 @@ from collections import defaultdict
 import json
 
 # 添加项目路径
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(project_root)
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_script_dir))
+sys.path.append(_project_root)
 
 from helper import io_util
 
@@ -445,7 +446,7 @@ def main():
     parser.add_argument(
         '--mode',
         type=str,
-        default='dynamic',
+        default='static',
         choices=['dynamic', 'static'],
         help='提取模式：dynamic（每个案例单独edges）或 static（全局共享edges）'
     )
@@ -460,16 +461,13 @@ def main():
     # 转换为 include_influences 参数
     include_influences = args.with_influences
     
-    # 定义路径
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    
     # 输入路径
-    label_file = os.path.join(project_root, "preprocess", "raw_data", "gaia", "label_gaia.csv")
-    trace_dir = os.path.join(project_root, "preprocess", "processed_data", "gaia", "trace")
-    metric_dir = os.path.join(project_root, "preprocess", "raw_data", "gaia", "metric")
+    label_file = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "label_gaia.csv")
+    trace_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "trace")
+    metric_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "metric")
     
     # 输出路径
-    output_dir = os.path.join(project_root, "preprocess", "processed_data", "gaia", "graph")
+    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "graph")
     
     # 执行提取
     print(f"\n配置:")
@@ -481,4 +479,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

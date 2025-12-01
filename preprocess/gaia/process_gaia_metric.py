@@ -7,7 +7,9 @@ import time
 from datetime import datetime
 
 
-project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 获取项目根目录
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_script_dir))
 
 def copy_valid_metric_files() -> None:
     """
@@ -22,7 +24,7 @@ def copy_valid_metric_files() -> None:
     """
     # print(os.path.dirname(os.path.abspath(__file__)))
     
-    metric_dir = os.path.join(project_dir, 'preprocess', 'raw_data', 'gaia', 'metric')
+    metric_dir = os.path.join(_project_root, 'preprocess', 'raw_data', 'gaia', 'metric')
     # print(metric_dir)
 
     file_names = os.listdir(metric_dir)
@@ -69,7 +71,7 @@ def copy_valid_metric_files() -> None:
     # 将符合条件的metric文件复制到processed_data中
     for file in valid_files:
         file_path = os.path.join(metric_dir, file)
-        processed_data_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'metric')
+        processed_data_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'metric')
         if not os.path.exists(processed_data_dir):
             os.makedirs(processed_data_dir)
         target_path = os.path.join(processed_data_dir, file)
@@ -86,7 +88,7 @@ def merge_date_range_files() -> None:
     返回值:
         无
     """
-    processed_data_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'metric')
+    processed_data_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'metric')
     
     if not os.path.exists(processed_data_dir):
         print("processed_data 目录不存在")
@@ -166,7 +168,7 @@ def merge_metrics_by_service_instance() -> None:
     返回值:
         无
     """
-    processed_data_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'metric')
+    processed_data_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'metric')
     
     # 获取所有CSV文件
     csv_files = os.listdir(processed_data_dir)
@@ -358,7 +360,7 @@ def resample_metrics_30s_interval(num_processes: int = None) -> None:
     返回值:
         无
     """
-    processed_data_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'metric')
+    processed_data_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'metric')
     
     # 获取所有CSV文件
     csv_files = [f for f in os.listdir(processed_data_dir) if f.endswith('.csv')]
@@ -647,8 +649,8 @@ def extract_anomaly_samples(num_processes: int = None) -> None:
         无
     """
     # 文件路径
-    label_file = os.path.join(project_dir, 'data', 'gaia', 'label.csv')
-    processed_data_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia')
+    label_file = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'label_gaia.csv')
+    processed_data_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'metric')
     output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'anomaly_samples')
         
     # 创建输出目录
@@ -765,9 +767,9 @@ def extract_anomaly_samples_all_files(num_processes: int = None) -> None:
         无
     """
     # 文件路径
-    label_file = os.path.join(project_dir, 'preprocess', 'raw_data', 'gaia', 'label_gaia.csv')
-    processed_data_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'metric')
-    output_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'anomaly_metric')
+    label_file = os.path.join(_project_root, 'preprocess', 'raw_data', 'gaia', 'label_gaia.csv')
+    processed_data_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'metric')
+    output_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'anomaly_metric')
     
     # 创建输出目录
     if not os.path.exists(output_dir):
@@ -887,17 +889,17 @@ def remove_empty_samples_from_processed_data2() -> None:
     返回值:
         无
     """
-    processed_data2_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'processed_data2')
+    processed_data2_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'anomaly_metric')
     
     if not os.path.exists(processed_data2_dir):
-        print(f"❌ processed_data2 目录不存在: {processed_data2_dir}")
+        print(f"❌ anomaly_metric 目录不存在: {processed_data2_dir}")
         return
     
     # 获取所有CSV文件
     csv_files = [f for f in os.listdir(processed_data2_dir) if f.endswith('.csv')]
     
     if not csv_files:
-        print("❌ processed_data2 目录中没有找到CSV文件")
+        print("❌ anomaly_metric 目录中没有找到CSV文件")
         return
         
     print(f"🔍 开始清理 {len(csv_files)} 个文件中的空样本...")
@@ -1014,17 +1016,17 @@ def keep_only_complete_samples_from_processed_data2() -> None:
     返回值:
         无
     """
-    processed_data2_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'processed_data2')
+    processed_data2_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'anomaly_metric')
     
     if not os.path.exists(processed_data2_dir):
-        print(f"❌ processed_data2 目录不存在: {processed_data2_dir}")
+        print(f"❌ anomaly_metric 目录不存在: {processed_data2_dir}")
         return
     
     # 获取所有CSV文件
     csv_files = [f for f in os.listdir(processed_data2_dir) if f.endswith('.csv')]
     
     if not csv_files:
-        print("❌ processed_data2 目录中没有找到CSV文件")
+        print("❌ anomaly_metric 目录中没有找到CSV文件")
         return
         
     print(f"🔍 开始筛选 {len(csv_files)} 个文件中的完整样本...")
@@ -1136,9 +1138,8 @@ def keep_only_complete_samples_from_processed_data2() -> None:
 
 
 if __name__ == "__main__":
-    project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    label_file = os.path.join(project_dir, 'preprocess', 'raw_data', 'gaia', 'label_gaia.csv')
-    metric_dir = os.path.join(project_dir, 'preprocess', 'processed_data', 'gaia', 'metric')
+    label_file = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'label_gaia.csv')
+    metric_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'gaia', 'metric')
     
     # 复制选定metric文件到processed_data/metric目录下
     copy_valid_metric_files()

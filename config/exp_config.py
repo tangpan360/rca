@@ -5,7 +5,7 @@ class Config:
         # base config
         self.dataset = dataset
         self.gpu_device = '0'
-        self.seed = 2
+        self.seed = 12
 
         self.modalities = ['metric', 'trace', 'log']
         
@@ -65,8 +65,8 @@ class Config:
             self.seq_len = 20
             # Gaia数据集路径配置
             self.dataset_path = "./preprocess/processed_data/gaia/dataset.pkl"
-            self.nodes_path = "./preprocess/processed_data/gaia/graph/nodes_dynamic_no_influence.json"
-            self.edges_path = "./preprocess/processed_data/gaia/graph/edges_dynamic_no_influence.json"
+            self.nodes_path = "./preprocess/processed_data/gaia/graph/nodes_static_no_influence.json"
+            self.edges_path = "./preprocess/processed_data/gaia/graph/edges_static_no_influence.json"
         elif self.dataset == 'sn':
             self.feat_drop = 0
             self.patience = 10

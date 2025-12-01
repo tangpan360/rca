@@ -16,8 +16,10 @@ warnings.filterwarnings('ignore')
 
 # Drain相关导入
 import sys
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-extractor_path = os.path.join(project_root, 'extractor')
+# 获取项目根目录
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_project_root = os.path.dirname(os.path.dirname(_script_dir))
+extractor_path = os.path.join(_project_root, 'extractor')
 sys.path.append(extractor_path)
 from drain.drain_template_extractor import init_drain, extract_templates
 
@@ -421,8 +423,7 @@ def train_drain_from_logs(log_dir, output_dir, anomaly_periods=None):
     drain_model_path = os.path.join(output_dir, "gaia_drain.pkl")
     
     # 获取Gaia配置文件路径
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    gaia_config_path = os.path.join(project_root, "preprocess", "gaia", "gaia_drain3.ini")
+    gaia_config_path = os.path.join(_project_root, "preprocess", "gaia", "gaia_drain3.ini")
 
     miner = extract_templates(
         log_list=all_log_messages,
@@ -536,14 +537,11 @@ def main():
     """
     主函数
     """
-    # 获取项目根目录
-    project_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    
-    # 定义文件路径（使用相对路径）
-    label_file = os.path.join(project_dir, "preprocess", "raw_data", "gaia", "label_gaia.csv")
-    log_dir = os.path.join(project_dir, "preprocess", "raw_data", "gaia", "business")
-    output_dir = os.path.join(project_dir, "preprocess", "processed_data", "gaia", "log")
-    drain_dir = os.path.join(project_dir, "preprocess", "processed_data", "gaia", "drain_models")    
+    # 定义文件路径
+    label_file = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "label_gaia.csv")
+    log_dir = os.path.join(_project_root, "preprocess", "raw_data", "gaia", "business")
+    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "log")
+    drain_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "drain_models")    
     
     # 1. 加载异常时间段
     anomaly_periods = load_anomaly_periods(label_file)

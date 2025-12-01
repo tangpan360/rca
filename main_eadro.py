@@ -57,13 +57,14 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', default='gaia', choices=['gaia', 'sn', 'tt'],
                         help='Dataset to use: gaia, sn, or tt')
     parser.add_argument('--gpu', default='0', help='GPU device ID')
-    parser.add_argument('--seed', default=2, type=int, help='Random seed')
+    parser.add_argument('--seed', default=None, type=int, help='Random seed (default: use config value)')
     args = parser.parse_args()
     
     dataset = args.dataset
     config = Config(dataset)
     config.gpu_device = args.gpu
-    config.seed = args.seed
+    if args.seed is not None:
+        config.seed = args.seed
     
     train_and_evaluate(config, f'./logs/{dataset}', f'{dataset}_eadro')
 
