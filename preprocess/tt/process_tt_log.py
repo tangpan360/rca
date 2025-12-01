@@ -8,14 +8,13 @@ import pickle
 import sys
 from datetime import datetime
 
-# 添加 extractor/drain 到路径
+# 添加项目根目录到路径
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_script_dir))
-_extractor_path = os.path.join(_project_root, 'extractor')
-sys.path.append(_extractor_path)
+sys.path.append(_project_root)
 
 # Import 统一的 Drain 模块
-from drain.drain_template_extractor import extract_templates
+from utils.drain.drain_template_extractor import extract_templates
 
 def parse_tt_log_timestamp(log_str):
     """

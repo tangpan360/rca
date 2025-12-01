@@ -86,7 +86,7 @@ def preload_all_data():
                 if 'timestamp' in df.columns and 'template_id' in df.columns:
                     LOG_DATA_CACHE[instance_name] = df[['timestamp', 'template_id']]
                 else:
-                    print(f"⚠️  Warning: {instance_name} log file missing columns. Found: {df.columns.tolist()}")
+                     print(f"⚠️  Warning: {instance_name} log file missing columns. Found: {df.columns.tolist()}")
             except Exception as e:
                 print(f"❌ Error reading {instance_name} log: {e}")
             

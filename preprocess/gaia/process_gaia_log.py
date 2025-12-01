@@ -19,9 +19,8 @@ import sys
 # 获取项目根目录
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_script_dir))
-extractor_path = os.path.join(_project_root, 'extractor')
-sys.path.append(extractor_path)
-from drain.drain_template_extractor import init_drain, extract_templates
+sys.path.append(_project_root)
+from utils.drain.drain_template_extractor import init_drain, extract_templates
 
 
 def load_anomaly_periods(label_file_path):

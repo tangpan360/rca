@@ -50,8 +50,6 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_script_dir))
 sys.path.append(_project_root)
 
-from utils import io_util
-
 
 def add_parent_name_to_trace(trace_df):
     """
@@ -383,8 +381,10 @@ def extract_graph_for_all_cases(label_file, trace_dir, metric_dir, output_dir,
     nodes_file = os.path.join(output_dir, f'nodes_{mode}{influence_suffix}.json')
     edges_file = os.path.join(output_dir, f'edges_{mode}{influence_suffix}.json')
     
-    io_util.save_json(nodes_file, nodes_dict)
-    io_util.save_json(edges_file, edges_dict)
+    with open(nodes_file, 'w') as f:
+        json.dump(nodes_dict, f)
+    with open(edges_file, 'w') as f:
+        json.dump(edges_dict, f)
     
     print(f"   节点数据已保存至: {nodes_file}")
     print(f"   边数据已保存至: {edges_file}")

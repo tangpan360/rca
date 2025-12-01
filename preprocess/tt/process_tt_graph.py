@@ -26,7 +26,6 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_script_dir))
 sys.path.append(_project_root)
 
-from utils import io_util
 
 def extract_nodes_from_metric(metric_dir):
     """
@@ -240,8 +239,10 @@ def process_tt_graph(mode='dynamic'):
     nodes_file = os.path.join(output_dir, f'nodes_{mode}_no_influence.json')
     edges_file = os.path.join(output_dir, f'edges_{mode}_no_influence.json')
     
-    io_util.save_json(nodes_file, nodes_dict)
-    io_util.save_json(edges_file, edges_dict)
+    with open(nodes_file, 'w') as f:
+        json.dump(nodes_dict, f)
+    with open(edges_file, 'w') as f:
+        json.dump(edges_dict, f)
     
     print(f"Saved to {output_dir}")
 
