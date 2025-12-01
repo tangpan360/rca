@@ -32,5 +32,5 @@ def get_log_template_count(dataset):
     
     template_df = pd.read_csv(template_csv_path)
     num_templates = len(template_df)
-    print(f"{dataset.upper()}数据集: {num_templates}个log模板")
+    # print(f"{dataset.upper()}数据集: {num_templates}个log模板")
     return num_templates

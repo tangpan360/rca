@@ -16,9 +16,8 @@ import os
 # 获取项目根目录
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_script_dir))
-extractor_path = os.path.join(_project_root, 'extractor')
-sys.path.append(extractor_path)
-from utils.time_util import coast_time as time_decorator
+sys.path.append(_project_root)
+from utils.time_util import cost_time as time_decorator
 warnings.filterwarnings('ignore')
 
 
