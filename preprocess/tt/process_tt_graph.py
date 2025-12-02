@@ -152,10 +152,10 @@ def process_tt_graph(mode='dynamic'):
     print("=" * 60)
     
     # 路径
-    label_path = os.path.join(_project_root, "preprocess", "processed_data", "tt", "label_tt.csv")
-    metric_dir = os.path.join(_project_root, "preprocess", "processed_data", "tt", "metric")
-    trace_dir = os.path.join(_project_root, "preprocess", "processed_data", "tt", "trace")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "tt", "graph")
+    label_path = os.path.join(_project_root, "data", "processed_data", "tt", "label_tt.csv")
+    metric_dir = os.path.join(_project_root, "data", "processed_data", "tt", "metric")
+    trace_dir = os.path.join(_project_root, "data", "processed_data", "tt", "trace")
+    output_dir = os.path.join(_project_root, "data", "processed_data", "tt", "graph")
     
     os.makedirs(output_dir, exist_ok=True)
     

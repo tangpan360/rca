@@ -10,8 +10,8 @@ _project_root = os.path.dirname(os.path.dirname(_script_dir))
 def process_tt_traces():
     print("=== 开始处理 TT Trace 数据 ===")
     
-    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "tt", "data")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "tt", "trace")
+    raw_data_dir = os.path.join(_project_root, "data", "raw_data", "tt", "data")
+    output_dir = os.path.join(_project_root, "data", "processed_data", "tt", "trace")
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)

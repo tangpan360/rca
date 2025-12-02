@@ -57,7 +57,7 @@ def preload_all_data():
     
     # 1. Metric
     print("\n[1/3] 加载 Metric 数据...")
-    metric_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'sn', 'metric')
+    metric_dir = os.path.join(_project_root, 'data', 'processed_data', 'sn', 'metric')
     for instance_name in tqdm(SERVICES, desc="Metric"):
         fpath = os.path.join(metric_dir, f"{instance_name}_metric.csv")
         if os.path.exists(fpath):
@@ -71,7 +71,7 @@ def preload_all_data():
     
     # 2. Log
     print("\n[2/3] 加载 Log 数据...")
-    log_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'sn', 'log')
+    log_dir = os.path.join(_project_root, 'data', 'processed_data', 'sn', 'log')
     for instance_name in tqdm(SERVICES, desc="Log"):
         fpath = os.path.join(log_dir, f"{instance_name}_log.csv")
         if os.path.exists(fpath):
@@ -89,7 +89,7 @@ def preload_all_data():
             
     # 3. Trace
     print("\n[3/3] 加载 Trace 数据...")
-    trace_dir = os.path.join(_project_root, 'preprocess', 'processed_data', 'sn', 'trace')
+    trace_dir = os.path.join(_project_root, 'data', 'processed_data', 'sn', 'trace')
     for instance_name in tqdm(SERVICES, desc="Trace"):
         fpath = os.path.join(trace_dir, f"{instance_name}_trace.csv")
         if os.path.exists(fpath):
@@ -397,14 +397,14 @@ def process_all_sample(label_df) -> Dict[int, Dict[str, Any]]:
     return processed_data
 
 if __name__ == "__main__":
-    label_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
+    label_path = os.path.join(_project_root, "data", "processed_data", "sn", "label_sn.csv")
     label_df = pd.read_csv(label_path)
     
     # 1. Preload
     preload_all_data()
     
     # 2. Stats
-    stats_file = os.path.join(_project_root, "preprocess", "processed_data", "sn", "sn_norm_stats.pkl")
+    stats_file = os.path.join(_project_root, "data", "processed_data", "sn", "sn_norm_stats.pkl")
     if os.path.exists(stats_file):
         print(f"Loading stats from {stats_file}")
         with open(stats_file, 'rb') as f:
@@ -422,7 +422,7 @@ if __name__ == "__main__":
     dataset = process_all_sample(label_df)
     
     # 4. Save
-    out_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "dataset.pkl")
+    out_path = os.path.join(_project_root, "data", "processed_data", "sn", "dataset.pkl")
     with open(out_path, 'wb') as f:
         pickle.dump(dataset, f)
         

@@ -368,9 +368,9 @@ def main():
     主函数
     """
     # 定义文件路径（使用相对路径）
-    label_file = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "label_gaia.csv")
-    trace_dir = os.path.join(_project_root, "preprocess", "raw_data", "gaia", "trace")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "trace")
+    label_file = os.path.join(_project_root, "data", "processed_data", "gaia", "label_gaia.csv")
+    trace_dir = os.path.join(_project_root, "data", "raw_data", "gaia", "trace")
+    output_dir = os.path.join(_project_root, "data", "processed_data", "gaia", "trace")
     
     # 1. 加载异常时间段
     anomaly_periods = load_anomaly_periods(label_file)

@@ -64,9 +64,9 @@ class Config:
             self.log_dim = get_log_template_count('gaia')
             self.seq_len = 20
             # Gaia数据集路径配置
-            self.dataset_path = "./preprocess/processed_data/gaia/dataset.pkl"
-            self.nodes_path = "./preprocess/processed_data/gaia/graph/nodes_static_no_influence.json"
-            self.edges_path = "./preprocess/processed_data/gaia/graph/edges_static_no_influence.json"
+            self.dataset_path = "./data/processed_data/gaia/dataset.pkl"
+            self.nodes_path = "./data/processed_data/gaia/graph/nodes_static_no_influence.json"
+            self.edges_path = "./data/processed_data/gaia/graph/edges_static_no_influence.json"
         elif self.dataset == 'sn':
             self.feat_drop = 0
             self.patience = 10
@@ -78,9 +78,9 @@ class Config:
             self.log_dim = get_log_template_count('sn')
             self.seq_len = 10
             # SN数据集路径配置
-            self.dataset_path = "./preprocess/processed_data/sn/dataset.pkl"
-            self.nodes_path = "./preprocess/processed_data/sn/graph/nodes_predefined_static_no_influence.json"
-            self.edges_path = "./preprocess/processed_data/sn/graph/edges_predefined_static_no_influence.json"
+            self.dataset_path = "./data/processed_data/sn/dataset.pkl"
+            self.nodes_path = "./data/processed_data/sn/graph/nodes_predefined_static_no_influence.json"
+            self.edges_path = "./data/processed_data/sn/graph/edges_predefined_static_no_influence.json"
         elif self.dataset == 'tt':
             self.feat_drop = 0
             self.patience = 10
@@ -92,9 +92,9 @@ class Config:
             self.log_dim = get_log_template_count('tt')
             self.seq_len = 10
             # TT数据集路径配置
-            self.dataset_path = "./preprocess/processed_data/tt/dataset.pkl"
-            self.nodes_path = "./preprocess/processed_data/tt/graph/nodes_predefined_static_no_influence.json"
-            self.edges_path = "./preprocess/processed_data/tt/graph/edges_predefined_static_no_influence.json"
+            self.dataset_path = "./data/processed_data/tt/dataset.pkl"
+            self.nodes_path = "./data/processed_data/tt/graph/nodes_predefined_static_no_influence.json"
+            self.edges_path = "./data/processed_data/tt/graph/edges_predefined_static_no_influence.json"
         else:
             raise NotImplementedError()
     

@@ -462,12 +462,12 @@ def main():
     include_influences = args.with_influences
     
     # 输入路径
-    label_file = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "label_gaia.csv")
-    trace_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "trace")
-    metric_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "metric")
+    label_file = os.path.join(_project_root, "data", "processed_data", "gaia", "label_gaia.csv")
+    trace_dir = os.path.join(_project_root, "data", "processed_data", "gaia", "trace")
+    metric_dir = os.path.join(_project_root, "data", "processed_data", "gaia", "metric")
     
     # 输出路径
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "graph")
+    output_dir = os.path.join(_project_root, "data", "processed_data", "gaia", "graph")
     
     # 执行提取
     print(f"\n配置:")

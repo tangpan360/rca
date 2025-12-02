@@ -39,10 +39,10 @@ def process_sn_logs():
     print("=== 开始处理 SN 日志数据 (Custom Drain Config) ===")
     
     # 1. 配置路径
-    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "sn", "data")
-    label_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "log")
-    drain_model_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "drain_models")
+    raw_data_dir = os.path.join(_project_root, "data", "raw_data", "sn", "data")
+    label_path = os.path.join(_project_root, "data", "processed_data", "sn", "label_sn.csv")
+    output_dir = os.path.join(_project_root, "data", "processed_data", "sn", "log")
+    drain_model_dir = os.path.join(_project_root, "data", "processed_data", "sn", "drain_models")
     
     # 指定自定义 Drain 配置文件
     drain_config_path = os.path.join(_script_dir, "sn_drain3.ini")

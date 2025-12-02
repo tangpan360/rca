@@ -146,10 +146,10 @@ def process_sn_graph(mode='dynamic'):
     print("=" * 60)
     
     # 路径
-    label_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
-    metric_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "metric")
-    trace_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "trace")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "graph")
+    label_path = os.path.join(_project_root, "data", "processed_data", "sn", "label_sn.csv")
+    metric_dir = os.path.join(_project_root, "data", "processed_data", "sn", "metric")
+    trace_dir = os.path.join(_project_root, "data", "processed_data", "sn", "trace")
+    output_dir = os.path.join(_project_root, "data", "processed_data", "sn", "graph")
     
     os.makedirs(output_dir, exist_ok=True)
     

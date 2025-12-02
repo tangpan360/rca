@@ -34,8 +34,8 @@ def _add_window_sample(fault_list, base_start_ts, offset, duration, service, fau
     fault_list.append(row)
 
 def generate_sn_labels():
-    input_dir = os.path.join(_project_root, "preprocess", "raw_data", "sn", "data")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn")
+    input_dir = os.path.join(_project_root, "data", "raw_data", "sn", "data")
+    output_dir = os.path.join(_project_root, "data", "processed_data", "sn")
     
     # 如果输出目录不存在则创建
     if not os.path.exists(output_dir):

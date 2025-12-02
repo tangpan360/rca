@@ -537,10 +537,10 @@ def main():
     主函数
     """
     # 定义文件路径
-    label_file = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "label_gaia.csv")
-    log_dir = os.path.join(_project_root, "preprocess", "raw_data", "gaia", "business")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "log")
-    drain_dir = os.path.join(_project_root, "preprocess", "processed_data", "gaia", "drain_models")    
+    label_file = os.path.join(_project_root, "data", "processed_data", "gaia", "label_gaia.csv")
+    log_dir = os.path.join(_project_root, "data", "raw_data", "gaia", "business")
+    output_dir = os.path.join(_project_root, "data", "processed_data", "gaia", "log")
+    drain_dir = os.path.join(_project_root, "data", "processed_data", "gaia", "drain_models")    
     
     # 1. 加载异常时间段
     anomaly_periods = load_anomaly_periods(label_file)

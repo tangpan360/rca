@@ -9,9 +9,9 @@ _project_root = os.path.dirname(os.path.dirname(_script_dir))
 
 def process_sn_metrics():
     # 1. 路径配置
-    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "sn", "data")
-    label_path = os.path.join(_project_root, "preprocess", "processed_data", "sn", "label_sn.csv")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "sn", "metric")
+    raw_data_dir = os.path.join(_project_root, "data", "raw_data", "sn", "data")
+    label_path = os.path.join(_project_root, "data", "processed_data", "sn", "label_sn.csv")
+    output_dir = os.path.join(_project_root, "data", "processed_data", "sn", "metric")
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)

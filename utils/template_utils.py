@@ -26,7 +26,7 @@ def get_log_template_count(dataset):
     }
     
     template_csv_path = os.path.join(
-        _project_root, "preprocess", "processed_data", dataset, 
+        _project_root, "data", "processed_data", dataset, 
         "drain_models", template_files[dataset]
     )
     

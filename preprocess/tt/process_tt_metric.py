@@ -9,9 +9,9 @@ _project_root = os.path.dirname(os.path.dirname(_script_dir))
 
 def process_tt_metrics():
     # 1. 路径配置
-    raw_data_dir = os.path.join(_project_root, "preprocess", "raw_data", "tt", "data")
-    label_path = os.path.join(_project_root, "preprocess", "processed_data", "tt", "label_tt.csv")
-    output_dir = os.path.join(_project_root, "preprocess", "processed_data", "tt", "metric")
+    raw_data_dir = os.path.join(_project_root, "data", "raw_data", "tt", "data")
+    label_path = os.path.join(_project_root, "data", "processed_data", "tt", "label_tt.csv")
+    output_dir = os.path.join(_project_root, "data", "processed_data", "tt", "metric")
     
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
