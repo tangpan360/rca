@@ -17,11 +17,9 @@ import os
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.dirname(os.path.dirname(_script_dir))
 sys.path.append(_project_root)
-from utils.time_util import cost_time as time_decorator
 warnings.filterwarnings('ignore')
 
 
-@time_decorator
 def load_anomaly_periods(label_file_path):
     """
     加载异常时间段数据（固定600秒窗口）
@@ -362,7 +360,6 @@ def create_selection_mask(times, target_periods):
     
     return is_in_target
 
-@time_decorator
 def main():
     """
     主函数
