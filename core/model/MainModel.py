@@ -4,33 +4,33 @@ import dgl
 from config.exp_config import Config
 from core.model.Classifier import Classifier
 from core.model.Voter import Voter
-from core.model.Encoder import Encoder
-from core.model.EadroEncoder import EadroModalEncoder
+from core.model.GraphEncoder import GraphEncoder
+from core.model.ModalEncoder import MultiModalEncoder
 from core.model.TaskSpecificAttention import AdaptiveModalFusion
 
 
-class MainModelEadro(nn.Module):
+class MainModel(nn.Module):
     """
-    集成Eadro编码器的TVDiag主模型
-    流程: 原始时序数据 -> Eadro编码器 -> TVDiag图网络 -> 诊断输出
+    多模态故障诊断主模型
+    流程: 原始时序数据 -> 多模态编码器 -> 图网络 -> 诊断输出
     """
     def __init__(self, config: Config):
-        super(MainModelEadro, self).__init__()
+        super(MainModel, self).__init__()
         
         self.config = config
         
-        # Eadro模态编码器（将原始数据编码为固定维度）
-        self.eadro_encoder = EadroModalEncoder(
+        # 多模态编码器（将原始数据编码为固定维度）
+        self.modal_encoder = MultiModalEncoder(
             output_dim=config.feature_embedding_dim,
             metric_channels=config.metric_channels,
             log_dim=config.log_dim,
             seq_len=config.seq_len
         )
         
-        # TVDiag图编码器（每个模态一个）
-        self.encoders = nn.ModuleDict()
+        # 图编码器（每个模态一个）
+        self.graph_encoders = nn.ModuleDict()
         for modality in config.modalities:
-            self.encoders[modality] = Encoder(
+            self.graph_encoders[modality] = GraphEncoder(
                 feature_embedding_dim=config.feature_embedding_dim,
                 graph_hidden_dim=config.graph_hidden_dim,
                 graph_out_dim=config.graph_out,
@@ -68,12 +68,12 @@ class MainModelEadro(nn.Module):
             # 默认模式：使用所有配置的模态
             used_modalities = self.config.modalities
         
-        # 步骤1: 使用Eadro编码器处理原始数据
+        # 步骤1: 使用多模态编码器处理原始数据
         metric_raw = batch_graphs.ndata['metric']  # [num_nodes, 20, 12]
         log_raw = batch_graphs.ndata['log']  # [num_nodes, 48]
         trace_raw = batch_graphs.ndata['trace']  # [num_nodes, 20, 2]
         
-        metric_emb, log_emb, trace_emb = self.eadro_encoder(metric_raw, log_raw, trace_raw)
+        metric_emb, log_emb, trace_emb = self.modal_encoder(metric_raw, log_raw, trace_raw)
         
         modal_embs = {
             'metric': metric_emb,
@@ -81,13 +81,13 @@ class MainModelEadro(nn.Module):
             'trace': trace_emb
         }
         
-        # 步骤2: 使用TVDiag图编码器处理（只处理使用的模态）
+        # 步骤2: 使用图编码器处理（只处理使用的模态）
         fs, es = {}, {}
         
         for modality in used_modalities:
-            if modality in self.encoders:
+            if modality in self.graph_encoders:
                 x_d = modal_embs[modality]
-                f_d, e_d = self.encoders[modality](batch_graphs, x_d)  # graph-level, node-level
+                f_d, e_d = self.graph_encoders[modality](batch_graphs, x_d)  # graph-level, node-level
                 fs[modality] = f_d
                 es[modality] = e_d
 
@@ -180,5 +180,3 @@ class MainModelEadro(nn.Module):
             analysis['task_preference_differences'] = differences
         
         return analysis
-
-

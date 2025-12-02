@@ -5,7 +5,7 @@ from core.model.backbone.sage import SAGEEncoder
 # from core.model.backbone.SGC import SGCEncoder
 
 
-class Encoder(nn.Module):
+class GraphEncoder(nn.Module):
     def __init__(self, 
                 feature_embedding_dim: int,
                 graph_hidden_dim: int, 
@@ -13,7 +13,7 @@ class Encoder(nn.Module):
                 num_layers=2,
                 aggregator='mean',
                 feat_drop=0.3):
-        super(Encoder, self).__init__()
+        super(GraphEncoder, self).__init__()
 
         self.graph_encoder = SAGEEncoder(
             in_dim=feature_embedding_dim,
@@ -41,3 +41,4 @@ class Encoder(nn.Module):
     def forward(self, g, x):
         f, e = self.graph_encoder(g, x)
         return f, e
+        

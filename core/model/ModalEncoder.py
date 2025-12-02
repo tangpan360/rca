@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class MetricEncoder(nn.Module):
-    """Eadro风格的Metric编码器: 1D CNN处理时序数据"""
+    """时序指标编码器: 1D CNN处理时序数据"""
     def __init__(self, input_channels=12, seq_len=20, output_dim=128):
         super(MetricEncoder, self).__init__()
         # 输入: [batch, 20, 12] -> [batch, 12, 20]
@@ -26,7 +26,7 @@ class MetricEncoder(nn.Module):
 
 
 class LogEncoder(nn.Module):
-    """Eadro风格的Log编码器: MLP处理template统计"""
+    """日志模板编码器: MLP处理template统计"""
     def __init__(self, input_dim=48, output_dim=128):
         super(LogEncoder, self).__init__()
         self.fc1 = nn.Linear(input_dim, 128)
@@ -69,13 +69,13 @@ class TraceEncoder(nn.Module):
         return x
 
 
-class EadroModalEncoder(nn.Module):
+class MultiModalEncoder(nn.Module):
     """
-    Eadro风格的多模态编码器
-    将原始时序数据编码为固定维度的embedding，然后接入TVDiag的图网络
+    多模态编码器
+    将原始时序数据编码为固定维度的embedding，然后接入图网络进行故障诊断
     """
     def __init__(self, output_dim=128, metric_channels=12, log_dim=48, seq_len=20):
-        super(EadroModalEncoder, self).__init__()
+        super(MultiModalEncoder, self).__init__()
         self.metric_encoder = MetricEncoder(
             input_channels=metric_channels, 
             seq_len=seq_len, 

@@ -9,15 +9,15 @@ import dgl
 import numpy as np
 
 from core.loss.AutomaticWeightedLoss import AutomaticWeightedLoss
-from core.model.MainModelEadro import MainModelEadro
+from core.model.MainModel import MainModel
 from utils.eval import *
 from utils.early_stop import EarlyStopping
 from utils.Result import Result
 from config.exp_config import Config
 
 
-class TVDiagEadro(object):
-    """集成Eadro编码器的TVDiag训练和评估框架"""
+class MultiModalDiag(object):
+    """多模态故障诊断训练和评估框架"""
 
     def __init__(self, config: Config, logger, log_dir: str):
         self.config = config
@@ -41,7 +41,7 @@ class TVDiagEadro(object):
         self.config.print_configs(self.logger)
 
     def train(self, train_data, val_data, aug_data):
-        model = MainModelEadro(self.config).to(self.device)
+        model = MainModel(self.config).to(self.device)
         opt = torch.optim.Adam(model.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
         
         awl = AutomaticWeightedLoss(2)  # 只有2个损失：l_rcl 和 l_fti
@@ -53,7 +53,7 @@ class TVDiagEadro(object):
         Z_r2fs, Z_f2rs = [], []
         
         earlyStop = EarlyStopping(patience=self.config.patience)
-        best_model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_best.pt')
+        best_model_path = os.path.join(self.writer.log_dir, 'MMDiag_best.pt')
         
         for epoch in range(self.config.epochs):
             n_iter = 0
@@ -163,7 +163,7 @@ class TVDiagEadro(object):
             'model': model.state_dict(),
             'opt': opt.state_dict(),
         }
-        torch.save(state, os.path.join(self.writer.log_dir, 'TVDiagEadro_last.pt'))
+        torch.save(state, os.path.join(self.writer.log_dir, 'MMDiag_last.pt'))
         self.result.set_train_efficiency(train_times)
         self.logger.info("Training has finished.")
         self.logger.info(f"Best model saved at: {best_model_path}")
@@ -225,21 +225,21 @@ class TVDiagEadro(object):
         if model is None:
             # 加载最优模型权重
             if self.config.use_best_model:
-                model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_best.pt')
+                model_path = os.path.join(self.writer.log_dir, 'MMDiag_best.pt')
                 if not os.path.exists(model_path):
-                    model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_last.pt')
+                    model_path = os.path.join(self.writer.log_dir, 'MMDiag_last.pt')
                     self.logger.info("Best model not found, fallback to last model")
             else:
                 # 加载最后的模型
-                model_path = os.path.join(self.writer.log_dir, 'TVDiagEadro_last.pt')
+                model_path = os.path.join(self.writer.log_dir, 'MMDiag_last.pt')
             
             self.logger.info(f"Loading model from {model_path}")
             checkpoint = torch.load(model_path)
             
-            model = MainModelEadro(self.config).to(self.device)
+            model = MainModel(self.config).to(self.device)
             model.load_state_dict(checkpoint['model'])
             self.logger.info(f"Model loaded from epoch {checkpoint['epoch']}")
-       
+            
         model.eval()
         root_logits, type_logits = [], []
         roots, types = [], []
@@ -310,5 +310,3 @@ class TVDiagEadro(object):
         batched_graph = dgl.batch(graphs)
         batched_labels = torch.tensor(labels)
         return batched_graph, batched_labels
-
-

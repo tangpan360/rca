@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from config.exp_config import Config
 from utils.logger import get_logger
-from core.TVDiagEadro import TVDiagEadro
+from core.MultiModalDiag import MultiModalDiag
 from utils.Result import Result
 from process.DatasetProcess import DatasetProcess
 import warnings
@@ -31,7 +31,7 @@ def train_and_evaluate(config: Config, log_dir, exp_name):
     set_seed(config.seed)
     logger = get_logger(log_dir, exp_name)
     logger.info("="*50)
-    logger.info("TVDiag with Eadro Encoders")
+    logger.info("MultiModal Fault Diagnosis Framework")
     logger.info("="*50)
     
     # 打印使用的模态配置
@@ -45,7 +45,7 @@ def train_and_evaluate(config: Config, log_dir, exp_name):
     logger.info("Load dataset")
     train_data, val_data, aug_data, test_data = build_dataloader(config, logger)
     logger.info("Training...")
-    model = TVDiagEadro(config, logger, log_dir)
+    model = MultiModalDiag(config, logger, log_dir)
     model.train(train_data, val_data, aug_data)
     res: Result = model.evaluate(test_data)
     return res.export_df(exp_name)
@@ -53,7 +53,7 @@ def train_and_evaluate(config: Config, log_dir, exp_name):
 
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='TVDiag with Eadro Encoders')
+    parser = argparse.ArgumentParser(description='MultiModal Fault Diagnosis Framework')
     parser.add_argument('--dataset', default='gaia', choices=['gaia', 'sn', 'tt'],
                         help='Dataset to use: gaia, sn, or tt')
     parser.add_argument('--gpu', default='0', help='GPU device ID')
@@ -66,5 +66,5 @@ if __name__ == '__main__':
     if args.seed is not None:
         config.seed = args.seed
     
-    train_and_evaluate(config, f'./logs/{dataset}', f'{dataset}_eadro')
+    train_and_evaluate(config, f'./logs/{dataset}', f'{dataset}_mmdiag')
 
