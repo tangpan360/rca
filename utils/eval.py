@@ -3,7 +3,6 @@ import torch
 from sklearn.metrics import precision_score, recall_score, f1_score
 
 
-
 def RCA_eval(root_logit, num_nodes_list, roots):
     res = {"HR@1": [], "HR@2": [], "HR@3": [], "HR@4": [], "HR@5": [], "MRR@3": []}
     
@@ -35,11 +34,30 @@ def RCA_eval(root_logit, num_nodes_list, roots):
     
         
 def FTI_eval(output, target, k=5):
-    res = {"pre": [], "rec": [], "f1": []}
-    res['pre']=precision(output, target, k)
-    res['rec']=recall(output, target, k)
-    res['f1']=f1score(output, target, k)
-    return res
+    """
+    故障类型分类评估 - 使用整体分类准确性
+    
+    Args:
+        output: 模型输出logits [batch_size, num_classes]
+        target: 真实标签 [batch_size]
+        k: 保留参数（兼容性），但不使用
+    
+    Returns:
+        dict: 包含precision, recall, f1的字典
+    """
+    # 获取预测类别（概率最高的类别）
+    _, pred = torch.max(output, dim=1)
+    
+    # 转换为numpy数组
+    y_pred = pred.cpu().detach().numpy()
+    y_true = target.cpu().detach().numpy()
+    
+    # 计算整体指标（macro平均 - 各类别平等重要）
+    precision = precision_score(y_true, y_pred, average='macro', zero_division=0)
+    recall = recall_score(y_true, y_pred, average='macro', zero_division=0)
+    f1 = f1_score(y_true, y_pred, average='macro', zero_division=0)
+    
+    return {"pre": precision, "rec": recall, "f1": f1}
 
 
 
@@ -57,29 +75,3 @@ def target_rank(output, target, k=10):
     
     return ranks
 
-
-def precision(output, target, k=5):
-    _, pred = output.topk(k, 1, True, True)
-    y_pred = pred.cpu().detach().numpy()
-    y_true = target.cpu().detach().numpy().reshape(-1, 1)
-    pre = precision_score(y_true, y_pred[:, 0], average='weighted')
-
-    return pre
-
-
-def recall(output, target, k=5):
-    _, pred = output.topk(k, 1, True, True)
-    y_pred = pred.cpu().detach().numpy()
-    y_true = target.cpu().detach().numpy().reshape(-1, 1)
-    rec = recall_score(y_true, y_pred[:, 0], average='weighted')
-
-    return rec
-
-
-def f1score(output, target, k=5):
-    _, pred = output.topk(k, 1, True, True)
-    y_pred = pred.cpu().detach().numpy()
-    y_true = target.cpu().detach().numpy().reshape(-1, 1)
-    f1 = f1_score(y_true, y_pred[:, 0], average='weighted')
-
-    return f1
