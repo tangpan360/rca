@@ -1,39 +1,67 @@
-# import pandas as pd
-# from collections import defaultdict
-# from tqdm import tqdm
-# from utils import io_util
+import os
+import pandas as pd
+from collections import defaultdict
+from tqdm import tqdm
+from utils import io_util
 
-# labels = pd.read_csv('MicroSS/gaia.csv')
-# failure_pre_data: dict = io_util.load('MicroSS/pre-data.pkl')
+# 模块级路径变量
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_baseline_root = os.path.dirname(_script_dir)
+_project_root = os.path.dirname(os.path.dirname(_baseline_root))
+
+# 动态路径拼接
+gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')
+gaia_processed = os.path.join(_baseline_root, 'data', 'gaia', 'processed_data')
+detector_dir = os.path.join(gaia_processed, 'detector')
+
+# 自动创建detector目录
+os.makedirs(detector_dir, exist_ok=True)
+
+# 输入文件路径
+label_path = os.path.join(gaia_raw_data, 'label_gaia.csv')
+pre_data_path = os.path.join(gaia_processed, 'pre-data.pkl')
+
+labels = pd.read_csv(label_path)
+failure_pre_data: dict = io_util.load(pre_data_path)
 
 
-# normal_metrics = {}
-# normal_traces = defaultdict(list)
+normal_metrics = {}
+normal_traces = defaultdict(list)
 
-# for idx, row in tqdm(labels.iterrows(), total=labels.shape[0]):
-#     if row['data_type'] == 'test':
-#         continue
-#     index = row['index']
-#     chunk = failure_pre_data[index]
-#     for pod, kpi_dic in chunk['metric'].items():
-#         if pod not in normal_metrics.keys():
-#             normal_metrics[pod] = defaultdict(list)
-#         for kpi, kpi_df in kpi_dic.items():
-#             normal_metrics[pod][kpi].append(kpi_df)
+for idx, row in tqdm(labels.iterrows(), total=labels.shape[0]):
+    if row['data_type'] == 'test':
+        continue
+    index = row['index']
+    chunk = failure_pre_data[index]
+    for pod, kpi_dic in chunk['metric'].items():
+        if pod not in normal_metrics.keys():
+            normal_metrics[pod] = defaultdict(list)
+        for kpi, kpi_df in kpi_dic.items():
+            normal_metrics[pod][kpi].append(kpi_df)
             
-    # trace_df = chunk['trace']
-    # trace_df['operation'] = trace_df['url'].str.split('?').str[0]
-    # trace_gp = trace_df.groupby(['parent_name', 'service_name', 'operation'])
-    # for (src, dst, op), call_df in trace_gp:
-    #     name = src + '-' + dst + '-' + op
-    #     normal_traces[name].append(call_df)
+    trace_df = chunk['trace']
+    trace_df['operation'] = trace_df['url'].str.split('?').str[0]
+    trace_gp = trace_df.groupby(['parent_name', 'service_name', 'operation'])
+    for (src, dst, op), call_df in trace_gp:
+        name = src + '-' + dst + '-' + op
+        normal_traces[name].append(call_df)
 
-# for pod in normal_metrics.keys():
-#     for kpi, kpi_dfs in normal_metrics[pod].items():
-#         normal_metrics[pod][kpi] = pd.concat(kpi_dfs)
+# 释放大型数据字典
+del failure_pre_data
 
-# io_util.save('MicroSS/detector/normal_traces.pkl', normal_traces)
-# io_util.save('MicroSS/detector/normal_metrics.pkl', normal_metrics)
+for pod in normal_metrics.keys():
+    for kpi, kpi_dfs in normal_metrics[pod].items():
+        normal_metrics[pod][kpi] = pd.concat(kpi_dfs)
+
+# 输出文件路径
+normal_traces_path = os.path.join(detector_dir, 'normal_traces.pkl')
+normal_metrics_path = os.path.join(detector_dir, 'normal_metrics.pkl')
+
+io_util.save(normal_traces_path, normal_traces)
+io_util.save(normal_metrics_path, normal_metrics)
+
+# 释放已保存的数据
+del normal_traces, normal_metrics
 
 ############################################################################
 
@@ -44,9 +72,12 @@ from utils import io_util
 import time
 
 
+# 读取已处理的数据
+normal_traces_path = os.path.join(detector_dir, 'normal_traces.pkl')
+normal_metrics_path = os.path.join(detector_dir, 'normal_metrics.pkl')
 
-normal_traces = io_util.load('MicroSS/detector/normal_traces.pkl')
-normal_metrics = io_util.load('MicroSS/detector/normal_metrics.pkl')
+normal_traces = io_util.load(normal_traces_path)
+normal_metrics = io_util.load(normal_metrics_path)
 
 metric_detectors = {}
 for pod in normal_metrics.keys():
@@ -80,8 +111,15 @@ for name, call_dfs in normal_traces.items():
     trace_detectors[name]['500_detector']=err_500_clf
     trace_detectors[name]['400_detector']=err_400_clf
 
+# 释放训练数据
+del normal_traces, normal_metrics
+
 ed = time.time()
-io_util.save('MicroSS/detector/trace-detector.pkl', trace_detectors)
-io_util.save('MicroSS/detector/metric-detector-strict-host.pkl', metric_detectors)
+# 保存检测器模型
+trace_detector_path = os.path.join(detector_dir, 'trace-detector.pkl')
+metric_detector_path = os.path.join(detector_dir, 'metric-detector-strict-host.pkl')
+
+io_util.save(trace_detector_path, trace_detectors)
+io_util.save(metric_detector_path, metric_detectors)
 
 print(ed-st)

@@ -11,6 +11,11 @@ import multiprocessing as mp
 import warnings
 warnings.filterwarnings('ignore')
 
+# 定义模块级私有变量
+_script_dir = os.path.dirname(os.path.abspath(__file__))  # baselines/TVDiag/extractor/
+_baseline_root = os.path.dirname(_script_dir)             # baselines/TVDiag/
+_project_root = os.path.dirname(os.path.dirname(_baseline_root))  # 主项目根路径
+
 random.seed(12)
 np.random.seed(12)
 
@@ -36,8 +41,18 @@ def process_traces(dir):
         return spans_df_temp
 
     def trans2timestamp(df: pd.DataFrame):
-        df['start_time'] = df['start_time'].apply(lambda x: time2stamp(str(x).split('.')[0]))
-        df['end_time'] = df['end_time'].apply(lambda x: time2stamp(str(x).split('.')[0]))
+        print("开始转换时间戳...")
+        total_rows = len(df)
+        print(f"需要处理 {total_rows} 行数据")
+        
+        # 使用tqdm显示进度条
+        tqdm.pandas(desc="转换start_time")
+        df['start_time'] = df['start_time'].progress_apply(lambda x: time2stamp(str(x).split('.')[0]))
+
+        tqdm.pandas(desc="转换end_time")
+        df['end_time'] = df['end_time'].progress_apply(lambda x: time2stamp(str(x).split('.')[0]))
+
+        print("trace 时间戳转换完成！")
         return df
 
     dfs = []
@@ -49,7 +64,10 @@ def process_traces(dir):
     trace_df = spans_df_left_join(trace_df)
     trace_df = trans2timestamp(trace_df)
 
-    trace_df.to_csv(f"trace.csv")
+    gaia_tmp = os.path.join(_baseline_root, 'data', 'gaia', 'tmp')
+    os.makedirs(gaia_tmp, exist_ok=True)
+    trace_output_path = os.path.join(gaia_tmp, "trace.csv")
+    trace_df.to_csv(trace_output_path)
 
 
 def process_logs(dir):
@@ -66,7 +84,10 @@ def process_logs(dir):
             df = extract_Date(df)
             dfs.append(df)
     log_df = pd.concat(dfs)
-    log_df.to_csv("log.csv")
+    gaia_tmp = os.path.join(_baseline_root, 'data', 'gaia', 'tmp')
+    os.makedirs(gaia_tmp, exist_ok=True)
+    log_output_path = os.path.join(gaia_tmp, "log.csv")
+    log_df.to_csv(log_output_path)
 
 
 def extract_traces(trace_df: pd.DataFrame, start_time):
@@ -104,18 +125,19 @@ def read_all_metrics():
         pod1 = svc+'1'
         pod2 = svc+'2'
         pod_names.extend([pod1, pod2])
-    for f in os.listdir("MicroSS/metric"):
+    metric_dir = os.path.join(_project_root, 'data', 'raw_data', 'gaia', 'metric')
+    for f in os.listdir(metric_dir):
         splits = f.split('_')
         cur_pod, cur_host = splits[0], splits[1]
         if (cur_pod not in pod_names) or ('2021-07-15_2021-07-31' in f):
             continue
         metric_name = '_'.join(splits[2:-2])
-        df1 = pd.read_csv(f'MicroSS/metric/{f}')
+        df1 = pd.read_csv(os.path.join(metric_dir, f))
         next_name = f.replace(
                         "2021-07-01_2021-07-15",
                         "2021-07-15_2021-07-31"
                     )
-        df2 = pd.read_csv(f'MicroSS/metric/{next_name}')
+        df2 = pd.read_csv(os.path.join(metric_dir, next_name))
         key = cur_pod + '_' + cur_host
         if key not in data.keys():
             data[key] = {}
@@ -123,15 +145,21 @@ def read_all_metrics():
     return data
 
 if __name__ == '__main__':
-    # trace_df = process_traces("trace")
-    # log_df = process_logs("business")
+    gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')
+    gaia_tmp = os.path.join(_baseline_root, 'data', 'gaia', 'tmp')
+    
+    # trace_df = process_traces(os.path.join(gaia_raw_data, "trace"))
+    # log_df = process_logs(os.path.join(gaia_raw_data, "business"))
 
-    label_df = pd.read_csv("MicroSS/gaia.csv")
+    label_path = os.path.join(gaia_raw_data, "label_gaia.csv")
+    label_df = pd.read_csv(label_path)
     label_df['st_time'] = label_df['st_time'].apply(lambda x: time2stamp(str(x).split('.')[0]))
     label_df['ed_time'] = label_df['ed_time'].apply(lambda x: time2stamp(str(x).split('.')[0]))
 
-    trace_df = pd.read_csv("MicroSS/trace.csv")
-    log_df = pd.read_csv("MicroSS/log.csv")
+    trace_path = os.path.join(gaia_tmp, "trace.csv")
+    log_path = os.path.join(gaia_tmp, "log.csv")
+    trace_df = pd.read_csv(trace_path)
+    log_df = pd.read_csv(log_path)
 
     pre_data, post_data = {}, {}
     metric_data = read_all_metrics()
@@ -180,5 +208,12 @@ if __name__ == '__main__':
         process_time = end_time - start_time
         print(fr"完成{idx}, 用时{process_time}")
 
-    # io_util.save("MicroSS/pre-data.pkl", pre_data)
-    io_util.save("MicroSS/post-data-10.pkl", post_data)
+    del label_df, trace_df, log_df, metric_data
+
+    gaia_processed = os.path.join(_baseline_root, 'data', 'gaia', 'processed_data')
+    os.makedirs(gaia_processed, exist_ok=True)
+    pre_data_path = os.path.join(gaia_processed, "pre-data.pkl")
+    io_util.save(pre_data_path, pre_data)
+    del pre_data
+    post_data_path = os.path.join(gaia_processed, "post-data-10.pkl")
+    io_util.save(post_data_path, post_data)

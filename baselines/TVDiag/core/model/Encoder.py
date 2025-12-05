@@ -1,8 +1,8 @@
 
 from torch import nn
 from core.model.backbone.sage import SAGEEncoder
-from core.model.backbone.tag import TAGEncoder
-from core.model.backbone.SGC import SGCEncoder
+# from core.model.backbone.tag import TAGEncoder
+# from core.model.backbone.SGC import SGCEncoder
 
 
 class Encoder(nn.Module):

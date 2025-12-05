@@ -19,12 +19,16 @@ class EventProcess():
 
     def process(self, reconstruct=False):
         self.data_path = f"data/{self.dataset}"
-        label_path = f"data/{self.dataset}/label.csv"
-        metric_path = f"data/{self.dataset}/raw/metrics.json"
-        trace_path = f"data/{self.dataset}/raw/traces.json"
-        log_path = f"data/{self.dataset}/raw/logs.json"
-        edge_path = f"data/{self.dataset}/raw/edges.json"
-        node_path = f"data/{self.dataset}/raw/nodes.json"
+        
+        project_root = "../.."
+        label_path = f"{project_root}/data/raw_data/{self.dataset}/label_{self.dataset}.csv"
+        
+        extracted_path = f"data/{self.dataset}/processed_data/extracted"
+        metric_path = f"{extracted_path}/metrics.json"
+        trace_path = f"{extracted_path}/traces.json"
+        log_path = f"{extracted_path}/logs.json"
+        edge_path = f"{extracted_path}/edges.json"
+        node_path = f"{extracted_path}/nodes.json"
 
         self.logger.info(f"Load raw events from {self.dataset} dataset")
         self.labels = pd.read_csv(label_path)
@@ -117,7 +121,7 @@ class EventProcess():
                     emb = encoder.get_sentence_embedding(doc)
                     graph_embs.append(emb)
                 embs[idx]=graph_embs
-            tmp_pth = f'data/{self.dataset}/tmp/'
+            tmp_pth = f'data/{self.dataset}/processed_data/tmp/'
             if not os.path.isdir(tmp_pth):
                 os.system(f"mkdir -p {tmp_pth}")
             io_util.save_pkl(f"{tmp_pth}/{key}.pkl", embs)
@@ -125,9 +129,10 @@ class EventProcess():
 
     def build_dataset(self):
         self.logger.info(f"Build dataset for training")
-        metric_embs = io_util.load_pkl(f"data/{self.dataset}/tmp/metric.pkl")
-        trace_embs = io_util.load_pkl(f"data/{self.dataset}/tmp/trace.pkl")
-        log_embs = io_util.load_pkl(f"data/{self.dataset}/tmp/log.pkl")
+        tmp_path = f"data/{self.dataset}/processed_data/tmp"
+        metric_embs = io_util.load_pkl(f"{tmp_path}/metric.pkl")
+        trace_embs = io_util.load_pkl(f"{tmp_path}/trace.pkl")
+        log_embs = io_util.load_pkl(f"{tmp_path}/log.pkl")
 
         label_dict = {}
         all_nodes = list({item for sublist in self.nodes.values() for item in sublist})

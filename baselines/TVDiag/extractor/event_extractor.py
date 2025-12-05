@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 import pandas as pd
 import time
@@ -9,13 +10,36 @@ from extractor.trace_event_extractor import extract_trace_events
 from extractor.log_event_extractor import extract_log_events
 from utils import io_util
 
+# 定义模块级路径变量
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_baseline_root = os.path.dirname(_script_dir)
+_project_root = os.path.dirname(os.path.dirname(_baseline_root))
 
-data: dict = io_util.load('MicroSS/post-data-10.pkl')
+# 动态路径拼接
+gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')
+gaia_processed = os.path.join(_baseline_root, 'data', 'gaia', 'processed_data')
+extracted_dir = os.path.join(gaia_processed, 'extracted')
+
+# 创建统一的提取特征目录
+os.makedirs(extracted_dir, exist_ok=True)
+
+
+# 输入文件路径
+post_data_path = os.path.join(gaia_processed, 'post-data-10.pkl')
+label_path = os.path.join(gaia_raw_data, 'label_gaia.csv')
+metric_detector_path = os.path.join(gaia_processed, 'detector', 'metric-detector-strict-host.pkl')
+trace_detector_path = os.path.join(gaia_processed, 'detector', 'trace-detector.pkl')
+drain_model_path = os.path.join(gaia_processed, 'drain', 'gaia-drain.pkl')
+
+# 加载数据和模型
+data: dict = io_util.load(post_data_path)
 # 将第一列设置为索引
-label_df = pd.read_csv('MicroSS/gaia.csv', index_col=0)
+label_df = pd.read_csv(label_path, index_col=0)
 
-metric_detectors = io_util.load('MicroSS/detector/metric-detector-strict-host.pkl')
-trace_detectors = io_util.load('MicroSS/detector/trace-detector.pkl')
+metric_detectors = io_util.load(metric_detector_path)
+trace_detectors = io_util.load(trace_detector_path)
+# 预加载Drain模型（避免循环内重复加载）
+miner = io_util.load(drain_model_path)
 
 
 metric_events_dic = defaultdict(list)
@@ -40,7 +64,6 @@ for idx, row in tqdm(label_df.iterrows(), total=label_df.shape[0]):
     trace_costs.append(time.time()-st)
     # extract log events
     st = time.time()
-    miner = io_util.load('./drain/gaia-drain.pkl')
     log_df = chunk['log']
     log_events = extract_log_events(log_df, miner, 0.5)
     log_events_dic[idx] = log_events
@@ -56,6 +79,11 @@ print(f'the time cost of extract log events is {log_time}')
 # the time cost of extract trace events is 0.23339865726162023
 # the time cost of extract log events is 0.6638196256618483
 
-io_util.save_json('events/log/log.json', log_events_dic)
-io_util.save_json('events/metric/metric.json', metric_events_dic)
-io_util.save_json('events/trace/trace.json', trace_events_dic)
+# 输出提取的特征文件（重命名为复数形式）
+logs_path = os.path.join(extracted_dir, 'logs.json')
+metrics_path = os.path.join(extracted_dir, 'metrics.json')
+traces_path = os.path.join(extracted_dir, 'traces.json')
+
+io_util.save_json(logs_path, log_events_dic)
+io_util.save_json(metrics_path, metric_events_dic)
+io_util.save_json(traces_path, trace_events_dic)

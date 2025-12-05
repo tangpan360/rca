@@ -1,6 +1,6 @@
+import os
 from collections import defaultdict
 import pandas as pd
-import os
 from tqdm import tqdm
 import numpy as np
 
@@ -9,10 +9,28 @@ from extractor.trace_event_extractor import extract_trace_events
 from extractor.log_event_extractor import extract_log_events
 from utils import io_util
 
+# 定义模块级路径变量
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_baseline_root = os.path.dirname(_script_dir)
+_project_root = os.path.dirname(os.path.dirname(_baseline_root))
 
-failure_post_data: dict = io_util.load('MicroSS/post-data.pkl')
+# 动态路径拼接
+gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')
+gaia_processed = os.path.join(_baseline_root, 'data', 'gaia', 'processed_data')
+extracted_dir = os.path.join(gaia_processed, 'extracted')
+
+# 创建统一的提取特征目录
+os.makedirs(extracted_dir, exist_ok=True)
+
+
+# 输入文件路径
+post_data_path = os.path.join(gaia_processed, 'post-data-10.pkl')
+label_path = os.path.join(gaia_raw_data, 'label_gaia.csv')
+metric_dir = os.path.join(gaia_raw_data, 'metric')
+
+failure_post_data: dict = io_util.load(post_data_path)
 # 将第一列设置为索引
-label_df = pd.read_csv('MicroSS/gaia.csv', index_col=0)
+label_df = pd.read_csv(label_path, index_col=0)
 
 for idx, row in tqdm(label_df.iterrows(), total=label_df.shape[0]):
     chunk = failure_post_data[idx]
@@ -23,7 +41,7 @@ for idx, row in tqdm(label_df.iterrows(), total=label_df.shape[0]):
 
     # 捕获服务与节点的对应关系
     node2svcs = defaultdict(list)
-    for f in os.listdir('./MicroSS/metric'):
+    for f in os.listdir(metric_dir):
         splits = f.split('_')
         svc, host = splits[0], splits[1]
         if svc in ['system', 'redis', 'zookeeper']:
@@ -61,12 +79,17 @@ for idx, row in tqdm(label_df.iterrows(), total=label_df.shape[0]):
     chunk['edges'] = edges
 
 ############################################################################################################################
-from tqdm import tqdm
+# 提取节点和边信息
 edges = {}
 nodes = {}
 for idx, row in tqdm(label_df.iterrows(), total=label_df.shape[0]):
     chunk = failure_post_data[idx]
     edges[idx] = chunk['edges']
     nodes[idx] = chunk['nodes']
-io_util.save_json('MicroSS/nodes.json', nodes)
-io_util.save_json('MicroSS/edges.json', edges)
+
+# 输出拓扑结构文件到统一的extracted目录
+nodes_path = os.path.join(extracted_dir, 'nodes.json')
+edges_path = os.path.join(extracted_dir, 'edges.json')
+
+io_util.save_json(nodes_path, nodes)
+io_util.save_json(edges_path, edges)

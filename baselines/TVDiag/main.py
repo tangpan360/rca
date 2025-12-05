@@ -45,5 +45,5 @@ def train_and_evaluate(config: Config, log_dir, exp_name):
 if __name__ == '__main__':
     for dataset in ['gaia', 'sockshop']:
         config = Config(dataset)
-        config.reconstruct = False # Directly use trained alert features
+        config.reconstruct = True # Directly use trained alert features
         train_and_evaluate(config, f'./logs/{dataset}', dataset)
