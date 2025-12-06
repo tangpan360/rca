@@ -1,19 +1,24 @@
 import os
+import sys
 from collections import defaultdict
 import pandas as pd
 import time
 from tqdm import tqdm
 import numpy as np
 
+# 定义模块级路径变量
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_extractor_dir = os.path.dirname(_script_dir)
+_baseline_root = os.path.dirname(_extractor_dir)
+_project_root = os.path.dirname(os.path.dirname(_baseline_root))
+
+# 添加extractor目录到路径
+sys.path.append(_extractor_dir)
+
 from extractor.metric_event_extractor import extract_metric_events
 from extractor.trace_event_extractor import extract_trace_events
 from extractor.log_event_extractor import extract_log_events
 from utils import io_util
-
-# 定义模块级路径变量
-_script_dir = os.path.dirname(os.path.abspath(__file__))
-_baseline_root = os.path.dirname(_script_dir)
-_project_root = os.path.dirname(os.path.dirname(_baseline_root))
 
 # 动态路径拼接
 gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')

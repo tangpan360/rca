@@ -1,9 +1,8 @@
 import os
+import sys
 
 import numpy as np
 from tqdm import tqdm
-from utils import io_util
-from utils.time_util import *
 import pandas as pd
 import time
 import random
@@ -11,9 +10,15 @@ import multiprocessing as mp
 import warnings
 warnings.filterwarnings('ignore')
 
-# 定义模块级私有变量
-_script_dir = os.path.dirname(os.path.abspath(__file__))  # baselines/TVDiag/extractor/
-_baseline_root = os.path.dirname(_script_dir)             # baselines/TVDiag/
+# 添加extractor目录到路径以导入utils
+_script_dir = os.path.dirname(os.path.abspath(__file__))  # baselines/TVDiag/extractor/gaia/
+_extractor_dir = os.path.dirname(_script_dir)              # baselines/TVDiag/extractor/
+sys.path.append(_extractor_dir)
+
+from utils import io_util
+from utils.time_util import *
+
+_baseline_root = os.path.dirname(_extractor_dir)           # baselines/TVDiag/
 _project_root = os.path.dirname(os.path.dirname(_baseline_root))  # 主项目根路径
 
 random.seed(12)
