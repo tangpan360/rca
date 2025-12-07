@@ -79,8 +79,9 @@ def generate_sn_labels():
                 service_name = service_mapping[service_name]
             
             # 定义窗口参数
-            window_size = 10
-            stride = 4
+            # ⚠️  重要: 这里的window_size必须与process_sn_data.py中的NUM_TIME_STEPS保持一致！
+            window_size = 10  # 秒
+            stride = 4  # 秒
             
             # 定义数据集划分比例 (Train: 50%, Val: 20%, Test: 30%)
             # 对应的截止时间点 (相对于 start_ts)

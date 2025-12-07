@@ -72,7 +72,7 @@ def load_all_trace_data(trace_dir):
     print("构建调用关系 (Resolving parent names)...")
     span_service = full_trace_df[['span_id', 'service_name']].drop_duplicates(subset=['span_id'])
     span_service = span_service.rename(columns={'service_name': 'parent_name'})
-    
+
     # Left Join
     # 许多 Span 可能没有 parent (root spans)，或者 parent 不在数据集中
     merged_df = full_trace_df.merge(
