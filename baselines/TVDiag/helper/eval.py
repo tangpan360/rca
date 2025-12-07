@@ -35,6 +35,7 @@ def RCA_eval(root_logit, num_nodes_list, roots):
     
         
 def FTI_eval(output, target, k=5):
+    k = min(k, output.size(1))
     res = {"pre": [], "rec": [], "f1": []}
     res['pre']=precision(output, target, k)
     res['rec']=recall(output, target, k)
@@ -44,6 +45,7 @@ def FTI_eval(output, target, k=5):
 
 
 def target_rank(output, target, k=10):
+    k = min(k, output.size(1))
     _, pred = output.topk(k, 1, True, True)
     pred = pred.t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
@@ -52,34 +54,37 @@ def target_rank(output, target, k=10):
         try:
             idx=torch.where(correct[:, col] == target[col])[0].item() + 1
         except:
-            idx=10
+            idx=k
         ranks.append(idx)
     
     return ranks
 
 
 def precision(output, target, k=5):
+    k = min(k, output.size(1))
     _, pred = output.topk(k, 1, True, True)
     y_pred = pred.cpu().detach().numpy()
     y_true = target.cpu().detach().numpy().reshape(-1, 1)
-    pre = precision_score(y_true, y_pred[:, 0], average='weighted')
+    pre = precision_score(y_true, y_pred[:, 0], average='macro', zero_division=0)
 
     return pre
 
 
 def recall(output, target, k=5):
+    k = min(k, output.size(1))
     _, pred = output.topk(k, 1, True, True)
     y_pred = pred.cpu().detach().numpy()
     y_true = target.cpu().detach().numpy().reshape(-1, 1)
-    rec = recall_score(y_true, y_pred[:, 0], average='weighted')
+    rec = recall_score(y_true, y_pred[:, 0], average='macro', zero_division=0)
 
     return rec
 
 
 def f1score(output, target, k=5):
+    k = min(k, output.size(1))
     _, pred = output.topk(k, 1, True, True)
     y_pred = pred.cpu().detach().numpy()
     y_true = target.cpu().detach().numpy().reshape(-1, 1)
-    f1 = f1_score(y_true, y_pred[:, 0], average='weighted')
+    f1 = f1_score(y_true, y_pred[:, 0], average='macro', zero_division=0)
 
     return f1

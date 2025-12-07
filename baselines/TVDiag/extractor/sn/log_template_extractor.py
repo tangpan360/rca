@@ -16,16 +16,16 @@ from drain.drain_template_extractor import *
 from utils import io_util
 
 # 动态路径拼接
-gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')
-gaia_processed = os.path.join(_baseline_root, 'data', 'gaia', 'processed_data')
-drain_dir = os.path.join(gaia_processed, 'drain')
+sn_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'sn')
+sn_processed = os.path.join(_baseline_root, 'data', 'sn', 'processed_data')
+drain_dir = os.path.join(sn_processed, 'drain')
 
 # 自动创建输出目录
 os.makedirs(drain_dir, exist_ok=True)
 
 # 输入文件路径
-post_data_path = os.path.join(gaia_processed, 'post-data-10.pkl')
-label_path = os.path.join(gaia_raw_data, 'label_gaia.csv')
+post_data_path = os.path.join(sn_processed, 'post-data-10.pkl')
+label_path = os.path.join(_project_root, 'data', 'processed_data', 'sn', 'label_sn.csv')
 
 data: dict = io_util.load(post_data_path)
 label_df = pd.read_csv(label_path, index_col=0)
@@ -38,11 +38,12 @@ for idx, row in tqdm(label_df.iterrows(), total=label_df.shape[0]):
     logs.extend(chunk['log']['message'].values.tolist())
 
 # Drain模型保存路径
-drain_model_path = os.path.join(drain_dir, 'gaia-drain.pkl')
+drain_model_path = os.path.join(drain_dir, 'sn-drain.pkl')
 
 miner = extract_templates(
     log_list=logs, 
-    save_pth=drain_model_path)
+    save_pth=drain_model_path,
+    dataset='sn')
 # miner = io_util.load(drain_model_path)
 
 sorted_clusters = sorted(miner.drain.clusters, key=lambda it: it.size, reverse=True)
@@ -62,5 +63,5 @@ template_df = pd.DataFrame(data={
 })
 
 # 模板CSV保存路径
-template_csv_path = os.path.join(drain_dir, 'gaia-template.csv')
+template_csv_path = os.path.join(drain_dir, 'sn-template.csv')
 template_df.to_csv(template_csv_path, index=False)

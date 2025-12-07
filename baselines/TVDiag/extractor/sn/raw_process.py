@@ -1,224 +1,350 @@
 import os
 import sys
-
+import json
+import re
+import pandas as pd
 import numpy as np
 from tqdm import tqdm
-import pandas as pd
-import time
-import random
-import multiprocessing as mp
-import warnings
-warnings.filterwarnings('ignore')
+from collections import defaultdict
 
 # 添加extractor目录到路径以导入utils
-_script_dir = os.path.dirname(os.path.abspath(__file__))  # baselines/TVDiag/extractor/gaia/
-_extractor_dir = os.path.dirname(_script_dir)              # baselines/TVDiag/extractor/
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_extractor_dir = os.path.dirname(_script_dir)
 sys.path.append(_extractor_dir)
 
 from utils import io_util
 from utils.time_util import *
 
-_baseline_root = os.path.dirname(_extractor_dir)           # baselines/TVDiag/
-_project_root = os.path.dirname(os.path.dirname(_baseline_root))  # 主项目根路径
+# 模块级路径变量
+_baseline_root = os.path.dirname(_extractor_dir)
+_project_root = os.path.dirname(os.path.dirname(_baseline_root))
 
-random.seed(12)
-np.random.seed(12)
+# 动态路径拼接
+sn_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'sn')
+sn_processed = os.path.join(_baseline_root, 'data', 'sn', 'processed_data')
+sn_tmp = os.path.join(sn_processed, 'tmp')
 
-def process_traces(dir):
-    def spans_df_left_join(spans_df_ori_1: pd.DataFrame) -> pd.DataFrame:
-        """
-            加入parent_name属性
-        """
-        spans_df_temp: pd.DataFrame = spans_df_ori_1
-        # 只需要span_id和cmdb_id
-        spans_df_ori_1 = spans_df_ori_1.loc[:, ['span_id', 'service_name']]
-        # 重命名
-        spans_df_ori_1.rename(columns={'service_name': 'parent_name'}, inplace=True)
-        start_time = time.time()
-        spans_df_temp = spans_df_temp.merge(spans_df_ori_1, left_on='parent_id', right_on='span_id', how='left')
-        end_time = time.time()
-        process_time = end_time - start_time
-        print(fr"用时{process_time}, spans左外连接完成")
-        del spans_df_ori_1
+os.makedirs(sn_processed, exist_ok=True)
+os.makedirs(sn_tmp, exist_ok=True)
 
-        spans_df_temp.rename(columns={'span_id_x': 'span_id'}, inplace=True)
-        spans_df_temp.drop(columns=['span_id_y'], inplace=True)
-        return spans_df_temp
+def parse_sn_log_timestamp(log_str):
+    """解析SN日志时间戳 [2022-Apr-17 10:12:50.490796]"""
+    pattern = r"\[(\d{4}-[A-Za-z]{3}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\]"
+    match = re.search(pattern, log_str)
+    if not match:
+        return None
+    
+    time_str = match.group(1)
+    try:
+        dt = pd.to_datetime(time_str, format="%Y-%b-%d %H:%M:%S.%f", utc=True)
+        return dt.timestamp()
+    except:
+        return None
 
-    def trans2timestamp(df: pd.DataFrame):
-        print("开始转换时间戳...")
-        total_rows = len(df)
-        print(f"需要处理 {total_rows} 行数据")
+def process_metrics(data_dir):
+    """处理指标数据"""
+    metrics = {}
+    services = ['compose-post-service', 'home-timeline-service', 'media-service', 
+                'nginx-web-server', 'post-storage-service', 'social-graph-service', 
+                'text-service', 'unique-id-service', 'url-shorten-service',
+                'user-mention-service', 'user-service', 'user-timeline-service']
+    
+    for service in services:
+        csv_path = os.path.join(data_dir, "metrics", f"{service}.csv")
+        if os.path.exists(csv_path):
+            df = pd.read_csv(csv_path)
+            # 关键：metric需要+8小时偏移
+            df['timestamp'] = df['timestamp'].astype(int) + 8 * 3600
+            metrics[service] = df
+    
+    return metrics
+
+def process_logs(data_dir):
+    """处理日志数据"""
+    logs_path = os.path.join(data_dir, "logs.json")
+    all_logs = []
+    
+    if os.path.exists(logs_path):
+        with open(logs_path, 'r') as f:
+            logs_dict = json.load(f)
         
-        # 使用tqdm显示进度条
-        tqdm.pandas(desc="转换start_time")
-        df['start_time'] = df['start_time'].progress_apply(lambda x: time2stamp(str(x).split('.')[0]))
+        for service, log_list in logs_dict.items():
+            for log_msg in log_list:
+                ts = parse_sn_log_timestamp(log_msg)
+                if ts is not None:
+                    # 关键：log不需要偏移，直接UTC解析
+                    all_logs.append({
+                        'timestamp': ts,
+                        'service': service,
+                        'message': log_msg
+                    })
+    
+    return pd.DataFrame(all_logs)
 
-        tqdm.pandas(desc="转换end_time")
-        df['end_time'] = df['end_time'].progress_apply(lambda x: time2stamp(str(x).split('.')[0]))
+def process_traces(data_dir):
+    """处理调用链数据"""
+    spans_path = os.path.join(data_dir, "spans.json")
+    all_traces = []
+    
+    if os.path.exists(spans_path):
+        with open(spans_path, 'r') as f:
+            traces_data = json.load(f)
+        
+        for trace_obj in traces_data:
+            trace_id = trace_obj.get('traceID', '')
+            processes = trace_obj.get('processes', {})
+            spans = trace_obj.get('spans', [])
+            
+            pid_to_service = {}
+            for pid, p_info in processes.items():
+                service_name = p_info.get('serviceName', '')
+                if service_name:
+                    pid_to_service[pid] = service_name
+            
+            # 建立spanID到service的映射(用于查找parent)
+            span_id_to_service = {}
+            for span in spans:
+                span_id = span.get('spanID', '')
+                process_id = span.get('processID', '')
+                service_name = pid_to_service.get(process_id, 'unknown')
+                if span_id:
+                    span_id_to_service[span_id] = service_name
+            
+            for span in spans:
+                process_id = span.get('processID', '')
+                service_name = pid_to_service.get(process_id, 'unknown')
+                operation_name = span.get('operationName', 'unknown')
+                
+                start_time_us = span.get('startTime')
+                duration_us = span.get('duration')
+                
+                if start_time_us is None or duration_us is None:
+                    continue
+                
+                start_time_ts = start_time_us / 1_000_000.0
+                duration_ts = duration_us / 1_000_000.0
+                
+                status_code = 200
+                tags = span.get('tags', [])
+                for tag in tags:
+                    if tag.get('key') == 'http.status_code':
+                        try:
+                            status_code = int(tag.get('value'))
+                        except:
+                            pass
+                        break
+                
+                parent_name = 'unknown'
+                references = span.get('references', [])
+                for ref in references:
+                    if ref.get('refType') == 'CHILD_OF':
+                        parent_span_id = ref.get('spanID', '')
+                        parent_name = span_id_to_service.get(parent_span_id, 'unknown')
+                        break
+                
+                all_traces.append({
+                    'start_time': start_time_ts,
+                    'end_time': start_time_ts + duration_ts,
+                    'duration': duration_ts,
+                    'service_name': service_name,
+                    'parent_name': parent_name,
+                    'url': operation_name,
+                    'status_code': status_code,
+                    'timestamp': start_time_ts
+                })
+    
+    return pd.DataFrame(all_traces)
 
-        print("trace 时间戳转换完成！")
-        return df
-
-    dfs = []
-    for f in os.listdir(dir):
-        if f.endswith("2021-07.csv"):
-            dfs.append(pd.read_csv(f"{dir}/{f}"))
-
-    trace_df = pd.concat(dfs)
-    trace_df = spans_df_left_join(trace_df)
-    trace_df = trans2timestamp(trace_df)
-
-    gaia_tmp = os.path.join(_baseline_root, 'data', 'gaia', 'tmp')
-    os.makedirs(gaia_tmp, exist_ok=True)
-    trace_output_path = os.path.join(gaia_tmp, "trace.csv")
-    trace_df.to_csv(trace_output_path)
-
-
-def process_logs(dir):
-    def extract_Date(df: pd.DataFrame):
-        df.dropna(axis=0, subset=['message'], inplace=True)
-        df['timestamp'] = df['message'].map(lambda m: m.split(',')[0])
-        df['timestamp'] = df['timestamp'].apply(lambda x: time2stamp(str(x)))
-        return df
-
-    dfs = []
-    for f in os.listdir(dir):
-        if f.endswith("2021-07.csv"):
-            df = pd.read_csv(f"{dir}/{f}")
-            df = extract_Date(df)
-            dfs.append(df)
-    log_df = pd.concat(dfs)
-    gaia_tmp = os.path.join(_baseline_root, 'data', 'gaia', 'tmp')
-    os.makedirs(gaia_tmp, exist_ok=True)
-    log_output_path = os.path.join(gaia_tmp, "log.csv")
-    log_df.to_csv(log_output_path)
-
-
-def extract_traces(trace_df: pd.DataFrame, start_time):
-    window = 10 * 60 * 1000
-    con1 = trace_df['start_time'] > start_time - 4*window
-    con2 = trace_df['start_time'] < start_time
-    con3 = trace_df['start_time'] > start_time
-    con4 = trace_df['start_time'] < start_time + window
-    return trace_df[con1 & con2], trace_df[con3 & con4]
-
-
-def extract_logs(log_df: pd.DataFrame, start_time):
-    window = 10 * 60 * 1000
-    con1 = log_df['timestamp'] > start_time - 4*window
-    con2 = log_df['timestamp'] < start_time
-    con3 = log_df['timestamp'] > start_time
-    con4 = log_df['timestamp'] < start_time + window
-    return log_df[con1 & con2], log_df[con3 & con4]
-
-
-def extract_metrics(metric_df: pd.DataFrame, start_time):
-    window = 10 * 60 * 1000
-    con1 = metric_df['timestamp'] > start_time - 4*window
-    con2 = metric_df['timestamp'] < start_time
-    con3 = metric_df['timestamp'] > start_time
-    con4 = metric_df['timestamp'] < start_time + window
-    return metric_df[con1 & con2], metric_df[con3 & con4]
-
-
-def read_all_metrics():
-    svcs = ['dbservice', 'mobservice', 'logservice', 'webservice', 'redisservice']
-    pod_names = []
-    data = {}
-    for svc in svcs:
-        pod1 = svc+'1'
-        pod2 = svc+'2'
-        pod_names.extend([pod1, pod2])
-    metric_dir = os.path.join(_project_root, 'data', 'raw_data', 'gaia', 'metric')
-    for f in os.listdir(metric_dir):
-        splits = f.split('_')
-        cur_pod, cur_host = splits[0], splits[1]
-        if (cur_pod not in pod_names) or ('2021-07-15_2021-07-31' in f):
-            continue
-        metric_name = '_'.join(splits[2:-2])
-        df1 = pd.read_csv(os.path.join(metric_dir, f))
-        next_name = f.replace(
-                        "2021-07-01_2021-07-15",
-                        "2021-07-15_2021-07-31"
-                    )
-        df2 = pd.read_csv(os.path.join(metric_dir, next_name))
-        key = cur_pod + '_' + cur_host
-        if key not in data.keys():
-            data[key] = {}
-        data[key][metric_name] = pd.concat([df1, df2])
+def extract_data_window(data, start_time, end_time):
+    """按时间窗口提取数据"""
+    if isinstance(data, pd.DataFrame):
+        return data[(data['timestamp'] >= start_time) & (data['timestamp'] < end_time)]
+    elif isinstance(data, dict):
+        result = {}
+        for service, df in data.items():
+            windowed_df = df[(df['timestamp'] >= start_time) & (df['timestamp'] < end_time)]
+            if not windowed_df.empty:
+                result[service] = windowed_df
+        return result
     return data
 
+def convert_metric_to_gaia_format(sn_metrics):
+    """SN metric格式 → Gaia metric格式"""
+    gaia_metrics = {}
+    for service, service_df in sn_metrics.items():
+        pod_host = f"{service}_host1"
+        gaia_metrics[pod_host] = {}
+        
+        for col in service_df.columns:
+            if col != 'timestamp':
+                kpi_df = service_df[['timestamp', col]].copy()
+                kpi_df = kpi_df.rename(columns={col: 'value'})
+                gaia_metrics[pod_host][col] = kpi_df
+                
+    return gaia_metrics
+
+
 if __name__ == '__main__':
-    gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')
-    gaia_tmp = os.path.join(_baseline_root, 'data', 'gaia', 'tmp')
+    print("=== SN Raw Process for TVDiag ===")
     
-    # trace_df = process_traces(os.path.join(gaia_raw_data, "trace"))
-    # log_df = process_logs(os.path.join(gaia_raw_data, "business"))
-
-    label_path = os.path.join(gaia_raw_data, "label_gaia.csv")
+    # 1. 处理正常数据（用于训练检测器）
+    print("Processing normal data...")
+    no_fault_dir = os.path.join(sn_raw_data, "no fault")
+    normal_experiments = [d for d in os.listdir(no_fault_dir) 
+                            if d.startswith("SN.2022") and os.path.isdir(os.path.join(no_fault_dir, d))]
+    
+    # 合并所有正常数据
+    all_normal_metrics = defaultdict(list)
+    all_normal_logs = []
+    all_normal_traces = []
+    
+    for exp in normal_experiments:
+        exp_dir = os.path.join(no_fault_dir, exp)
+        
+        # 处理各模态数据
+        metrics = process_metrics(exp_dir)
+        logs_df = process_logs(exp_dir)
+        traces_df = process_traces(exp_dir)
+        
+        # 合并到总体数据
+        for service, df in metrics.items():
+            all_normal_metrics[service].append(df)
+        
+        if not logs_df.empty:
+            all_normal_logs.append(logs_df)
+        
+        if not traces_df.empty:
+            all_normal_traces.append(traces_df)
+    
+    # 合并正常数据
+    pre_data = {'normal': {}}
+    
+    # 合并指标
+    normal_metrics = {}
+    for service, dfs in all_normal_metrics.items():
+        if dfs:
+            combined_df = pd.concat(dfs).sort_values('timestamp').drop_duplicates()
+            normal_metrics[service] = combined_df
+    
+    # 合并日志和调用链
+    normal_logs_df = pd.concat(all_normal_logs).sort_values('timestamp') if all_normal_logs else pd.DataFrame()
+    normal_traces_df = pd.concat(all_normal_traces).sort_values('timestamp') if all_normal_traces else pd.DataFrame()
+    
+    pre_data['normal'] = {
+        'metric': normal_metrics,
+        'log': normal_logs_df,
+        'trace': normal_traces_df
+    }
+    
+    # 2. 处理故障数据（按标签切片）
+    print("Processing fault data...")
+    label_path = os.path.join(_project_root, "data", "processed_data", "sn", "label_sn.csv")
     label_df = pd.read_csv(label_path)
-    label_df['st_time'] = label_df['st_time'].apply(lambda x: time2stamp(str(x).split('.')[0]))
-    label_df['ed_time'] = label_df['ed_time'].apply(lambda x: time2stamp(str(x).split('.')[0]))
-
-    trace_path = os.path.join(gaia_tmp, "trace.csv")
-    log_path = os.path.join(gaia_tmp, "log.csv")
-    trace_df = pd.read_csv(trace_path)
-    log_df = pd.read_csv(log_path)
-
-    pre_data, post_data = {}, {}
-    metric_data = read_all_metrics()
-    for _, row in label_df.iterrows():
-        start_time = time.time()
+    
+    fault_dir = os.path.join(sn_raw_data, "data")
+    fault_experiments = [d for d in os.listdir(fault_dir) 
+                        if d.startswith("SN.2022") and os.path.isdir(os.path.join(fault_dir, d))]
+    
+    # 读取所有故障实验数据
+    fault_data = {}
+    for exp in fault_experiments:
+        exp_dir = os.path.join(fault_dir, exp)
+        fault_data[exp] = {
+            'metric': process_metrics(exp_dir),
+            'log': process_logs(exp_dir),
+            'trace': process_traces(exp_dir)
+        }
+    
+    # 按标签切片
+    post_data = {}
+    for _, row in tqdm(label_df.iterrows(), total=len(label_df)):
         idx = row['index']
-        pre_data[idx], post_data[idx] = {}, {}
-        st_time, ed_time = row['st_time'], row['ed_time']
-        pre_trace_df, post_trace_df = extract_traces(trace_df, st_time)
-        pre_data[idx]['trace'] = pre_trace_df
-        post_data[idx]['trace'] = post_trace_df
-
-        pre_log_df, post_log_df = extract_logs(log_df, st_time)
-        pre_data[idx]['log'] = pre_log_df
-        post_data[idx]['log'] = post_log_df
-
-        # 并行处理metric
-        results = []
-        # with mp.Pool(processes=4) as pool:
-        #     for f in os.listdir("metric"):
-        #         if f.endswith("07-15.csv"):
-        #             df1 = pd.read_csv(f"metric/{f}")
-        #             next_name = f.replace(
-        #                 "2021-07-01_2021-07-15",
-        #                 "2021-07-15_2021-07-31"
-        #             )
-        #             df2 = pd.read_csv(f"metric/{next_name}")
-        #             metric_df = pd.concat([df1, df2])
-
-        #             metric_name = f.split("_2021")[0]
-        #             metric_df.rename(columns={"value": metric_name}, inplace=True)
-
-        #             result = pool.apply_async(extract_metrics, [metric_df, st_time])
-        #             results.append(result)
-        #     [result.wait() for result in results]
-        pre_metrics, post_metrics = {}, {}
-        for pod, metric_dic in metric_data.items():
-            pre_metrics[pod], post_metrics[pod] = {}, {}
-            for metric_name, metric_df in metric_dic.items():
-                pre_metrics[pod][metric_name], post_metrics[pod][metric_name] = extract_metrics(metric_df, st_time)
-
-        pre_data[idx]['metric'] = pre_metrics
-        post_data[idx]['metric'] = post_metrics
-
-        end_time = time.time()
-        process_time = end_time - start_time
-        print(fr"完成{idx}, 用时{process_time}")
-
-    del label_df, trace_df, log_df, metric_data
-
-    gaia_processed = os.path.join(_baseline_root, 'data', 'gaia', 'processed_data')
-    os.makedirs(gaia_processed, exist_ok=True)
-    pre_data_path = os.path.join(gaia_processed, "pre-data.pkl")
-    io_util.save(pre_data_path, pre_data)
+        st_time = row['st_timestamp']  # 标签时间戳已包含偏移
+        ed_time = st_time + 10
+        
+        # 根据时间找对应的实验
+        target_exp = None
+        for exp_name, exp_data in fault_data.items():
+            # 检查该时间是否在该实验范围内
+            if exp_data['metric']:
+                sample_service = list(exp_data['metric'].keys())[0]
+                exp_df = exp_data['metric'][sample_service]
+                if not exp_df.empty:
+                    exp_start = exp_df['timestamp'].min()
+                    exp_end = exp_df['timestamp'].max()
+                    if exp_start <= st_time <= exp_end:
+                        target_exp = exp_name
+                        break
+        
+        if target_exp:
+            exp_data = fault_data[target_exp]
+            
+            # 按时间窗口提取数据
+            windowed_metrics = extract_data_window(exp_data['metric'], st_time, ed_time)
+            windowed_logs = extract_data_window(exp_data['log'], st_time, ed_time)
+            windowed_traces = extract_data_window(exp_data['trace'], st_time, ed_time)
+            
+            post_data[idx] = {
+                'metric': windowed_metrics,
+                'log': windowed_logs,
+                'trace': windowed_traces
+            }
+    
+    # 3. 格式转换为Gaia兼容格式
+    print("Converting to Gaia-compatible format...")
+    
+    # 先转换normal数据
+    converted_normal_data = {
+        'metric': convert_metric_to_gaia_format(pre_data['normal']['metric']),
+        'log': pre_data['normal']['log'],
+        'trace': pre_data['normal']['trace']
+    }
+    
+    # 释放原始pre_data释放内存
     del pre_data
-    post_data_path = os.path.join(gaia_processed, "post-data-10.pkl")
-    io_util.save(post_data_path, post_data)
+    
+    # 转换pre_data结构：为每个样本创建相同的正常数据引用
+    print("Creating pre_data structure...")
+    gaia_pre_data = {}
+    for idx in list(post_data.keys()):
+        gaia_pre_data[idx] = converted_normal_data
+    
+    # 分批转换post_data以节省内存
+    print("Converting post_data...")
+    gaia_post_data = {}
+    batch_size = 100
+    post_keys = list(post_data.keys())
+    
+    for i in range(0, len(post_keys), batch_size):
+        batch_keys = post_keys[i:i+batch_size]
+        for idx in batch_keys:
+            sample = post_data[idx]
+            gaia_post_data[idx] = {
+                'metric': convert_metric_to_gaia_format(sample['metric']),
+                'log': sample['log'],
+                'trace': sample['trace']
+            }
+        
+        # 释放已处理的原始数据
+        for idx in batch_keys:
+            del post_data[idx]
+        
+        print(f"   Converted batch {i//batch_size + 1}/{(len(post_keys)-1)//batch_size + 1}")
+    
+    # 释放剩余数据
+    del post_data
+    
+    # 4. 保存数据
+    print("Saving processed data...")
+    pre_data_path = os.path.join(sn_processed, "pre-data.pkl")
+    post_data_path = os.path.join(sn_processed, "post-data-10.pkl")
+    
+    io_util.save(pre_data_path, gaia_pre_data)
+    io_util.save(post_data_path, gaia_post_data)
+    
+    print(f"✅ SN data processed successfully!")
+    print(f"   Normal experiments: {len(normal_experiments)}")
+    print(f"   Fault samples: {len(gaia_post_data)}")
+    print(f"   Pre-data saved: {pre_data_path}")
+    print(f"   Post-data saved: {post_data_path}")
+    print(f"   Format: Gaia-compatible for direct script reuse")

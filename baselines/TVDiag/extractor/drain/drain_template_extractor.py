@@ -14,11 +14,19 @@ from drain3.template_miner_config import TemplateMinerConfig
 import utils.io_util as io
 
 
-def init_drain():
+def init_drain(dataset='gaia'):
     config = TemplateMinerConfig()
+    
+    if dataset == 'sn':
+        config_file = 'sn_drain3.ini'
+    elif dataset == 'tt':
+        config_file = 'tt_drain3.ini'
+    else:
+        config_file = 'drain3.ini'
+    
     config_pth = os.path.join(
         os.path.dirname(__file__),
-        "drain3.ini"
+        config_file
     )
     config.load(config_pth)
     config.profiling_enabled = True
@@ -27,10 +35,10 @@ def init_drain():
     return template_miner
 
 
-def extract_templates(log_list: list, save_pth: str):
+def extract_templates(log_list: list, save_pth: str, dataset='gaia'):
     KEEP_TOP_N_TEMPLATE = 1000
 
-    miner = init_drain()
+    miner = init_drain(dataset=dataset)
 
     for line in tqdm(log_list):
         log_txt = line.rstrip()

@@ -21,20 +21,20 @@ from extractor.log_event_extractor import extract_log_events
 from utils import io_util
 
 # 动态路径拼接
-gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')
-gaia_processed = os.path.join(_baseline_root, 'data', 'gaia', 'processed_data')
-extracted_dir = os.path.join(gaia_processed, 'extracted')
+sn_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'sn')
+sn_processed = os.path.join(_baseline_root, 'data', 'sn', 'processed_data')
+extracted_dir = os.path.join(sn_processed, 'extracted')
 
 # 创建统一的提取特征目录
 os.makedirs(extracted_dir, exist_ok=True)
 
 
 # 输入文件路径
-post_data_path = os.path.join(gaia_processed, 'post-data-10.pkl')
-label_path = os.path.join(gaia_raw_data, 'label_gaia.csv')
-metric_detector_path = os.path.join(gaia_processed, 'detector', 'metric-detector-strict-host.pkl')
-trace_detector_path = os.path.join(gaia_processed, 'detector', 'trace-detector.pkl')
-drain_model_path = os.path.join(gaia_processed, 'drain', 'gaia-drain.pkl')
+post_data_path = os.path.join(sn_processed, 'post-data-10.pkl')
+label_path = os.path.join(_project_root, 'data', 'processed_data', 'sn', 'label_sn.csv')
+metric_detector_path = os.path.join(sn_processed, 'detector', 'metric-detector-strict-host.pkl')
+trace_detector_path = os.path.join(sn_processed, 'detector', 'trace-detector.pkl')
+drain_model_path = os.path.join(sn_processed, 'drain', 'sn-drain.pkl')
 
 # 加载数据和模型
 data: dict = io_util.load(post_data_path)

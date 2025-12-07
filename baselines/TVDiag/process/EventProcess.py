@@ -20,8 +20,11 @@ class EventProcess():
     def process(self, reconstruct=False):
         self.data_path = f"data/{self.dataset}"
         
-        project_root = "../.."
-        label_path = f"{project_root}/data/raw_data/{self.dataset}/label_{self.dataset}.csv"
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        baseline_root = os.path.dirname(script_dir)
+        project_root = os.path.dirname(os.path.dirname(baseline_root))
+        
+        label_path = os.path.join(project_root, "data", "raw_data", self.dataset, f"label_{self.dataset}.csv")
         
         extracted_path = f"data/{self.dataset}/processed_data/extracted"
         metric_path = f"{extracted_path}/metrics.json"

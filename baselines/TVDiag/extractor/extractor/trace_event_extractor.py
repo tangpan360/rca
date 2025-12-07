@@ -38,10 +38,15 @@ def extract_trace_events(df: pd.DataFrame, trace_detector: dict):
     gp = df.groupby(['parent_name', 'service_name', 'operation'])
     events = []
 
-    win_size = 30 * 1000
+    win_size = 10
     # detect events for every call
     for (src, dst, op), call_df in gp:
         name = src + '-' + dst +'-' + op
+        
+        # 如果检测器不存在，跳过该调用关系
+        if name not in trace_detector:
+            continue
+            
         test_df = call_df
         test_win_sts, test_durations, err_500_ps, err_400_ps = slide_window(test_df, win_size)
         if len(test_durations) > 0:

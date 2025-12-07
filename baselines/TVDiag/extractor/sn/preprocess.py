@@ -16,16 +16,16 @@ sys.path.append(_extractor_dir)
 from utils import io_util
 
 # 动态路径拼接
-gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')
-gaia_processed = os.path.join(_baseline_root, 'data', 'gaia', 'processed_data')
-detector_dir = os.path.join(gaia_processed, 'detector')
+sn_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'sn')
+sn_processed = os.path.join(_baseline_root, 'data', 'sn', 'processed_data')
+detector_dir = os.path.join(sn_processed, 'detector')
 
 # 自动创建detector目录
 os.makedirs(detector_dir, exist_ok=True)
 
 # 输入文件路径
-label_path = os.path.join(gaia_raw_data, 'label_gaia.csv')
-pre_data_path = os.path.join(gaia_processed, 'pre-data.pkl')
+label_path = os.path.join(_project_root, 'data', 'processed_data', 'sn', 'label_sn.csv')
+pre_data_path = os.path.join(sn_processed, 'pre-data.pkl')
 
 labels = pd.read_csv(label_path)
 failure_pre_data: dict = io_util.load(pre_data_path)
@@ -34,11 +34,21 @@ failure_pre_data: dict = io_util.load(pre_data_path)
 normal_metrics = {}
 normal_traces = defaultdict(list)
 
+# 用于跟踪已处理的pre_data对象（处理SN共享引用情况）
+seen_pre_data_ids = set()
+
 for idx, row in tqdm(labels.iterrows(), total=labels.shape[0]):
     if row['data_type'] == 'test':
         continue
     index = row['index']
     chunk = failure_pre_data[index]
+    
+    # 检查是否已处理过该对象（通过对象ID判断）
+    chunk_id = id(chunk['metric'])
+    if chunk_id in seen_pre_data_ids:
+        continue
+    seen_pre_data_ids.add(chunk_id)
+    
     for pod, kpi_dic in chunk['metric'].items():
         if pod not in normal_metrics.keys():
             normal_metrics[pod] = defaultdict(list)
@@ -103,7 +113,7 @@ for name, call_dfs in normal_traces.items():
     }
     train_ds, train_500_ep, train_400_ep = [], [], []
     for call_df in call_dfs:
-        _, durs, err_500_ps, err_400_ps = slide_window(call_df, 30 * 1000)
+        _, durs, err_500_ps, err_400_ps = slide_window(call_df, 10)
         train_ds.extend(durs)
         train_500_ep.extend(err_500_ps)
         train_400_ep.extend(err_400_ps)
