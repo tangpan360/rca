@@ -24,7 +24,7 @@ class EventProcess():
         baseline_root = os.path.dirname(script_dir)
         project_root = os.path.dirname(os.path.dirname(baseline_root))
         
-        label_path = os.path.join(project_root, "data", "raw_data", self.dataset, f"label_{self.dataset}.csv")
+        label_path = os.path.join(project_root, "data", "processed_data", self.dataset, f"label_{self.dataset}.csv")
         
         extracted_path = f"data/{self.dataset}/processed_data/extracted"
         metric_path = f"{extracted_path}/metrics.json"
