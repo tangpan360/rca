@@ -32,8 +32,10 @@ METRIC_COLUMNS = [
 
 NUM_METRICS = len(METRIC_COLUMNS) # 7 (不包含timestamp)
 NUM_INSTANCES = len(SERVICES)
-NUM_TIME_STEPS = 10 # 10秒
-STEP_DURATION = 1   # 1秒
+
+# ⚠️  重要: 以下参数必须与process_tt_label.py中的window_size保持一致！
+NUM_TIME_STEPS = 20  # 秒
+STEP_DURATION = 1  # 秒
 # Log Template 数量 (动态获取)
 NUM_LOG_TEMPLATES = get_log_template_count('tt')
 

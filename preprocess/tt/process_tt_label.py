@@ -75,8 +75,9 @@ def generate_tt_labels():
             # TT数据集不需要特殊映射
             
             # 定义窗口参数
-            window_size = 20
-            stride = 40
+            # ⚠️  重要: 这里的window_size必须与process_tt_data.py中的NUM_TIME_STEPS保持一致！
+            window_size = 20  # 秒
+            stride = 40  # 秒
             
             # 定义数据集划分比例 (Train: 50%, Val: 20%, Test: 30%)
             # 对应的截止时间点 (相对于 start_ts)
