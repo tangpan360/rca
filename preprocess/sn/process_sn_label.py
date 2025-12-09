@@ -10,9 +10,8 @@ _project_root = os.path.dirname(os.path.dirname(_script_dir))
 
 def _add_window_sample(fault_list, base_start_ts, offset, duration, service, fault_type, data_type):
     """辅助函数：添加一个滑动窗口样本"""
-    # 时间戳加上8小时 (8 * 3600s)
-    time_shift = 8 * 3600
-    win_start_ts = base_start_ts + offset + time_shift
+    # 所有时间戳已统一为UTC，直接使用
+    win_start_ts = base_start_ts + offset
     win_end_ts = win_start_ts + duration
     
     st_time_str = datetime.fromtimestamp(win_start_ts, timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')

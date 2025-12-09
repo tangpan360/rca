@@ -57,17 +57,11 @@ def process_tt_traces():
                 pid = span.get('processID')
                 service_name = pid_to_service.get(pid, 'unknown')
                 
-                start_time_us = span.get('startTime') # 微秒
-                duration_us = span.get('duration') # 微秒
+                start_time_ts = span.get('startTime')
+                duration_ts = span.get('duration')
                 
-                if start_time_us is None or duration_us is None:
+                if start_time_ts is None or duration_ts is None:
                     continue
-                    
-                # 时间戳转换: 微秒 -> 秒，不减去 8 小时 (根据用户指令)
-                # Eadro 原始脚本使用了秒 (startTime // 1_000_000)
-                # 1 s = 1,000,000 us
-                start_time_ts = start_time_us / 1_000_000.0
-                duration_ts = duration_us / 1_000_000.0 # 也转换为秒
                 
                 # 获取 Status Code
                 # 检查 tags
@@ -134,4 +128,3 @@ def process_tt_traces():
 
 if __name__ == "__main__":
     process_tt_traces()
-

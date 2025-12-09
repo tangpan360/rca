@@ -122,8 +122,8 @@ def compute_normalization_stats(label_df):
     all_traces = [[] for _ in range(NUM_INSTANCES)] # Trace Duration 按服务统计
     
     for _, row in tqdm(train_df.iterrows(), total=len(train_df), desc="收集训练数据"):
-        # 时间戳处理 (秒)
-        st_time = pd.to_datetime(row['st_time']).timestamp()
+        # 时间戳处理 (秒) - 明确指定UTC时区
+        st_time = pd.to_datetime(row['st_time'], utc=True).timestamp()
         # 10s 窗口
         ed_time = st_time + (NUM_TIME_STEPS * STEP_DURATION)
         
@@ -348,7 +348,7 @@ def _process_single_sample(row) -> Dict[str, Any]:
     sample_id = row['index']
     fault_service = row['instance']
     fault_type = row['anomaly_type']
-    st_time = pd.to_datetime(row['st_time']).timestamp()
+    st_time = pd.to_datetime(row['st_time'], utc=True).timestamp()
     ed_time = st_time + (NUM_TIME_STEPS * STEP_DURATION)
     data_type = row['data_type']
 

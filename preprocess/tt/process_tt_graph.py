@@ -215,7 +215,7 @@ def process_tt_graph(mode='dynamic'):
             
             # 获取时间窗口 (start_time 是 utc 字符串 -> 转 timestamp)
             # 注意：我们的 trace csv 中的 timestamp 是 float seconds (utc)
-            st_ts = pd.to_datetime(row['st_time']).timestamp()
+            st_ts = pd.to_datetime(row['st_time'], utc=True).timestamp()
             ed_ts = st_ts + row['duration'] # 通常 10s
             
             # 使用 Gaia 风格的布尔掩码筛选

@@ -58,7 +58,7 @@ def process_tt_logs():
     train_samples = label_df[label_df['data_type'] == 'train']
     train_intervals = []
     for _, row in train_samples.iterrows():
-        st = pd.to_datetime(row['st_time']).timestamp()
+        st = pd.to_datetime(row['st_time'], utc=True).timestamp()
         ed = st + row['duration']
         train_intervals.append((st, ed))
     
@@ -111,7 +111,7 @@ def process_tt_logs():
     is_train = pd.Series(False, index=logs_df.index)
     for start, end in merged_intervals:
         # 找出当前训练时间段内的所有时间点
-        in_current_period = (logs_df['timestamp'] >= start) & (logs_df['timestamp'] <= end)
+        in_current_period = (logs_df['timestamp'] >= start) & (logs_df['timestamp'] < end)
         # 将这些时间点标记为训练集（True）
         is_train.loc[in_current_period] = True
         

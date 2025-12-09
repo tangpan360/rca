@@ -35,8 +35,8 @@ def process_tt_metrics():
             
             if os.path.exists(csv_path):
                 df = pd.read_csv(csv_path)
-                # 确保时间戳为整数（秒）并加上8小时偏移
-                df['timestamp'] = df['timestamp'].astype(int) + 8 * 3600
+                # 确保时间戳为整数（秒）
+                df['timestamp'] = df['timestamp'].astype(int)
                 service_dfs.append(df)
         
         if service_dfs:
