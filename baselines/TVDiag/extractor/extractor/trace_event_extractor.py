@@ -35,7 +35,7 @@ def extract_trace_events(df: pd.DataFrame, trace_detector: dict):
     events = []
     df.sort_values(by=['timestamp'], inplace=True, ascending=True)
     df['operation'] = df['url'].str.split('?').str[0]
-    gp = df.groupby(['parent_name', 'service_name', 'operation'])
+    gp = df.groupby(['parent_name', 'service_name', 'operation'], dropna=True)
     events = []
 
     win_size = 10

@@ -57,7 +57,7 @@ for idx, row in tqdm(labels.iterrows(), total=labels.shape[0]):
             
     trace_df = chunk['trace']
     trace_df['operation'] = trace_df['url'].str.split('?').str[0]
-    trace_gp = trace_df.groupby(['parent_name', 'service_name', 'operation'])
+    trace_gp = trace_df.groupby(['parent_name', 'service_name', 'operation'], dropna=True)
     for (src, dst, op), call_df in trace_gp:
         name = src + '-' + dst + '-' + op
         normal_traces[name].append(call_df)

@@ -53,8 +53,8 @@ def process_metrics(data_dir):
         csv_path = os.path.join(data_dir, "metrics", f"{service}.csv")
         if os.path.exists(csv_path):
             df = pd.read_csv(csv_path)
-            # 关键：metric需要+8小时偏移
-            df['timestamp'] = df['timestamp'].astype(int) + 8 * 3600
+            # 关键：所有时间已统一为UTC
+            df['timestamp'] = df['timestamp'].astype(int)
             metrics[service] = df
     
     return metrics
@@ -115,14 +115,11 @@ def process_traces(data_dir):
                 service_name = pid_to_service.get(process_id, 'unknown')
                 operation_name = span.get('operationName', 'unknown')
                 
-                start_time_us = span.get('startTime')
-                duration_us = span.get('duration')
+                start_time_ts = span.get('startTime')
+                duration_ts = span.get('duration')
                 
-                if start_time_us is None or duration_us is None:
+                if start_time_ts is None or duration_ts is None:
                     continue
-                
-                start_time_ts = start_time_us / 1_000_000.0
-                duration_ts = duration_us / 1_000_000.0
                 
                 status_code = 200
                 tags = span.get('tags', [])
@@ -134,12 +131,12 @@ def process_traces(data_dir):
                             pass
                         break
                 
-                parent_name = 'unknown'
+                parent_name = None
                 references = span.get('references', [])
                 for ref in references:
                     if ref.get('refType') == 'CHILD_OF':
                         parent_span_id = ref.get('spanID', '')
-                        parent_name = span_id_to_service.get(parent_span_id, 'unknown')
+                        parent_name = span_id_to_service.get(parent_span_id, None)
                         break
                 
                 all_traces.append({
@@ -260,7 +257,7 @@ if __name__ == '__main__':
     for _, row in tqdm(label_df.iterrows(), total=len(label_df)):
         idx = row['index']
         st_time = row['st_timestamp']  # 标签时间戳已包含偏移
-        ed_time = st_time + 10
+        ed_time = row['ed_timestamp']
         
         # 根据时间找对应的实验
         target_exp = None
