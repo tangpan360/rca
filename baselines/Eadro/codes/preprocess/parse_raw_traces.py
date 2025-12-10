@@ -3,6 +3,12 @@ import json
 
 from util import Info
 
+# 设置相对路径
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_eadro_root = os.path.dirname(os.path.dirname(_script_dir))
+root_path = os.path.join(_eadro_root, 'dataset')
+output_path = os.path.join(_eadro_root, 'data')
+
 def parse_spans(spans_path, dataset_name, info):
     spans_path = sorted(spans_path)    
     for idx, path in enumerate(spans_path):
@@ -29,7 +35,7 @@ def parse_spans(spans_path, dataset_name, info):
         for t, s, l in t_s_l:
             processed_data[str(t)][s] = processed_data[str(t)].get(s, []) + [l]
         
-        save_path = f'./parsed_data/{dataset_name}/traces{idx}.json'
+        save_path = os.path.join(output_path, f'parsed_data/{dataset_name}/traces{idx}.json')
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         with open(save_path, 'w') as f:
             json.dump(processed_data, f)
@@ -46,7 +52,6 @@ def parse_spans(spans_path, dataset_name, info):
 
 
 if __name__ == '__main__':
-    root_path = os.getenv('ROOT_PATH')
     for dataset_name in ['SN', 'TT']:
         
         info = Info('trainticket') if dataset_name == 'TT' else Info('socialnetwork')

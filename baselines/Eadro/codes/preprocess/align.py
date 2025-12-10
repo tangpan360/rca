@@ -1,5 +1,12 @@
 import string
 import random
+import os
+
+# 设置相对路径
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_eadro_root = os.path.dirname(os.path.dirname(_script_dir))
+output_path = os.path.join(_eadro_root, 'data')
+
 chunkids = set()
 src = string.ascii_letters + string.digits
 def get_chunkid():
@@ -14,7 +21,7 @@ def get_chunkid():
 
 from util import *
 def get_basic(info, idx, name, chunk_lenth=10, threshold=1, **kwargs):
-    records = read_json(os.path.join("./parsed_data", name, "records"+idx+".json"))
+    records = read_json(os.path.join(output_path, "parsed_data", name, "records"+idx+".json"))
     faults = [(f_record["s"], f_record["e"], info.service2nid[f_record["service"]])
                 for f_record in records["faults"]]
     start, end = records["start"], records["end"]
@@ -42,8 +49,8 @@ from single_process import deal_logs, deal_traces, deal_metrics
 def get_chunks(info, idx, name, chunk_lenth=10, **kwargs):
     intervals, labels = get_basic(info, idx, name=name, chunk_lenth=chunk_lenth, **kwargs)
     
-    aim_dir = os.path.join("../chunks", name, idx)
-    if not os.path.exists(aim_dir): os.mkdir(aim_dir)
+    aim_dir = os.path.join(output_path, "chunks", name, idx)
+    if not os.path.exists(aim_dir): os.makedirs(aim_dir, exist_ok=True)
     if os.path.exists(os.path.join(aim_dir, "traces.pkl")):
         with open(os.path.join(aim_dir, "traces.pkl"), "rb") as fr: 
             traces = pickle.load(fr)
@@ -70,7 +77,7 @@ def get_chunks(info, idx, name, chunk_lenth=10, **kwargs):
 
 import numpy as np
 def get_all_chunks(name, chunk_lenth=10, **kwargs):
-    aim_dir = os.path.join("../chunks", name)
+    aim_dir = os.path.join(output_path, "chunks", name)
     os.makedirs(aim_dir, exist_ok=True)
     ############## Concat all chunks ##############
     # bench = "trainticket" if name[0] == "A" else "socialnetwork" 
@@ -81,7 +88,7 @@ def get_all_chunks(name, chunk_lenth=10, **kwargs):
     chunks = {}
     idx = 0
     while True:
-        if os.path.exists(os.path.join("./parsed_data", name, "records"+str(idx)+".json")):
+        if os.path.exists(os.path.join(output_path, "parsed_data", name, "records"+str(idx)+".json")):
             print("\n\n", "^"*20, "Now dealing with", idx, "^"*20)
             new_chunks = get_chunks(info, str(idx), chunk_lenth=chunk_lenth, name=name, **kwargs)
             chunks.update(new_chunks)
@@ -109,19 +116,20 @@ def split_chunks(name, test_ratio=0.2, concat=False, **kwargs):
     if concat:
         print("*** Concating chunks...")
         chunk_num = 0
-        for dir in os.listdir("../chunks"):
+        chunks_dir = os.path.join(output_path, "chunks")
+        for dir in os.listdir(chunks_dir):
             if not dir.startswith(name[0]): continue
-            if os.path.exists(os.path.join("../chunks", dir, "chunks.pkl")):
-                with open(os.path.join("../chunks", dir, "chunks.pkl"), "rb") as fr: 
+            if os.path.exists(os.path.join(chunks_dir, dir, "chunks.pkl")):
+                with open(os.path.join(chunks_dir, dir, "chunks.pkl"), "rb") as fr: 
                     chunks.update(pickle.load(fr))
-                metadata = read_json(os.path.join("../chunks", dir, "metadata.json"))
+                metadata = read_json(os.path.join(chunks_dir, dir, "metadata.json"))
                 chunk_num += metadata["chunk_num"]
-        os.makedirs(os.path.join("../chunks", name[0]), exist_ok=True)
+        os.makedirs(os.path.join(chunks_dir, name[0]), exist_ok=True)
         metadata["chunk_num"] = chunk_num
-        json_pretty_dump(metadata, os.path.join("../chunks", name[0], "metadata.json"))
+        json_pretty_dump(metadata, os.path.join(chunks_dir, name[0], "metadata.json"))
 
-    elif os.path.exists(os.path.join("../chunks", name, "chunks.pkl")):
-        with open(os.path.join("../chunks", name, "chunks.pkl"), "rb") as fr: 
+    elif os.path.exists(os.path.join(output_path, "chunks", name, "chunks.pkl")):
+        with open(os.path.join(output_path, "chunks", name, "chunks.pkl"), "rb") as fr: 
             chunks = pickle.load(fr)
     else: chunks = get_all_chunks(name=name, **kwargs)
 
@@ -142,9 +150,9 @@ def split_chunks(name, test_ratio=0.2, concat=False, **kwargs):
     test_chunks = {k:chunks[k] for k in chunk_hashids[test_idx]}
 
     aim = name[0] if concat else name
-    with open(os.path.join("../chunks", aim, "chunk_train.pkl"), "wb") as fw:
+    with open(os.path.join(output_path, "chunks", aim, "chunk_train.pkl"), "wb") as fw:
         pickle.dump(train_chunks, fw)
-    with open(os.path.join("../chunks", aim, "chunk_test.pkl"), "wb") as fw:
+    with open(os.path.join(output_path, "chunks", aim, "chunk_test.pkl"), "wb") as fw:
         pickle.dump(test_chunks, fw)
 
     ########## Print statistics ##########
@@ -176,8 +184,9 @@ parser.add_argument("--test_ratio", default=0.3, type=float)
 parser.add_argument("--name", required=True, help="The system name")
 params = vars(parser.parse_args())
 
+
 if "__main__" == __name__:
-    aim_dir = os.path.join("../chunks", params['name'])
+    aim_dir = os.path.join(output_path, "chunks", params['name'])
     if params['delete_all']:
         _input = input("Do you really want to delete all previous files?! Input yes if you are so confident.\n")
         flag = (_input.lower() == 'yes')

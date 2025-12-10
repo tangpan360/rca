@@ -3,6 +3,12 @@ import re
 import json
 import argparse
 
+# 设置相对路径
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_eadro_root = os.path.dirname(os.path.dirname(_script_dir))
+root_path = os.path.join(_eadro_root, 'dataset')
+output_path = os.path.join(_eadro_root, 'data')
+
 def SN_service_names(name):
     mapping = {
         'socialnetwork-text-service-1': 'text-service',
@@ -62,7 +68,7 @@ def process_raw_records(dataset_path, data_name):
                 'e': end
             })
         
-        save_path = os.path.join('./parsed_data', data_name, 'records' + str(record2idx[file_name]) + '.json')
+        save_path = os.path.join(output_path, 'parsed_data', data_name, 'records' + str(record2idx[file_name]) + '.json')
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         
         with open(save_path, 'w') as f:
@@ -73,13 +79,9 @@ def process_raw_records(dataset_path, data_name):
         # start_datetime = pd.to_datetime(processed_records['start'], unit='s')
         # end_datetime = pd.to_datetime(processed_records['end'], unit='s')
         # print(f"{file_name}: \n {start_datetime} -- {end_datetime}")
-    
-    
-    
 
 
 if __name__ == "__main__":
-    root_path = os.getenv('ROOT_PATH')
     for dataset_name in ['SN', 'TT']:
         if dataset_name == 'SN':
             dataset_path = os.path.join(root_path, 'SN Dataset')
@@ -87,4 +89,3 @@ if __name__ == "__main__":
             dataset_path = os.path.join(root_path, 'TT Dataset')
     
         process_raw_records(dataset_path, dataset_name)
-    

@@ -11,11 +11,16 @@ import pandas as pd
 import os
 import pickle
 
+# 设置相对路径
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_eadro_root = os.path.dirname(os.path.dirname(_script_dir))
+output_path = os.path.join(_eadro_root, 'data')
+
 def deal_logs(intervals, info, idx, name):
     print("*** Dealing with logs...")
     
-    df = pd.read_csv(os.path.join("./parsed_data", name, "logs"+idx+".csv"))
-    templates = read_json(os.path.join("./parsed_data", name, "templates.json"))
+    df = pd.read_csv(os.path.join(output_path, "parsed_data", name, "logs"+idx+".csv"))
+    templates = read_json(os.path.join(output_path, "parsed_data", name, "templates.json"))
     event_num = len(templates)
     
     print("# Real Template Number:", event_num)
@@ -48,7 +53,7 @@ def deal_logs(intervals, info, idx, name):
             res[chunk_idx, info.service2nid[service], :] = paras
     
     print("# Empty log:", no_log_chunk)   
-    with open(os.path.join("../chunks", name, idx, "logs.pkl"), "wb") as fw:
+    with open(os.path.join(output_path, "chunks", name, idx, "logs.pkl"), "wb") as fw:
         pickle.dump(res, fw)
     return res
 
@@ -60,7 +65,7 @@ def deal_metrics(intervals, info, idx, name, chunk_lenth):
     metrics = np.zeros((len(intervals), info.node_num, chunk_lenth, metric_num))
     
     for nid, service in enumerate(info.service_names):
-        df = pd.read_csv(os.path.join("./parsed_data", name, "metrics"+idx, service+'.csv'))
+        df = pd.read_csv(os.path.join(output_path, "parsed_data", name, "metrics"+idx, service+'.csv'))
         df[info.metric_names] = df[info.metric_names].apply(z_zero_scaler)
         df.set_index(["timestamp"], inplace=True)
         for chunk_idx, (s,e) in enumerate(intervals):
@@ -68,7 +73,7 @@ def deal_metrics(intervals, info, idx, name, chunk_lenth):
             assert values.shape == (chunk_lenth, metric_num), "{} shape in {}--{}".format(values.shape,s,e)
             metrics[chunk_idx, nid, :, :] = values
     
-    with open(os.path.join("../chunks", name, idx, "metrics.pkl"), "wb") as fw:
+    with open(os.path.join(output_path, "chunks", name, idx, "metrics.pkl"), "wb") as fw:
         pickle.dump(metrics, fw)
     return metrics
 
@@ -85,7 +90,7 @@ def deal_traces(intervals, info, idx, name, chunk_lenth):
             {nid:np.array([lat_1, ..., lat_tau, ..., lat_chunk_lenth}])}
     """
     print("*** Dealing with traces...")
-    traces = read_json(os.path.join("./parsed_data", name, "traces"+idx+".json"))
+    traces = read_json(os.path.join(output_path, "parsed_data", name, "traces"+idx+".json"))
     invocations = [] # the number of invocations
     latency = np.zeros((len(intervals), info.node_num, chunk_lenth, 2))
 
@@ -110,6 +115,6 @@ def deal_traces(intervals, info, idx, name, chunk_lenth):
         latency[:, i, :, 0] = z_zero_scaler(latency[:, i, :, 0])
     
     chunk_traces = {"invok": invocations, "latency": latency}
-    with open(os.path.join("../chunks", name, idx, "traces.pkl"), "wb") as fw:
+    with open(os.path.join(output_path, "chunks", name, idx, "traces.pkl"), "wb") as fw:
         pickle.dump(chunk_traces, fw)
     return chunk_traces

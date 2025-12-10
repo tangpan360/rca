@@ -3,6 +3,12 @@ import pandas as pd
 
 from util import Info
 
+# 设置相对路径
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_eadro_root = os.path.dirname(os.path.dirname(_script_dir))
+root_path = os.path.join(_eadro_root, 'dataset')
+output_path = os.path.join(_eadro_root, 'data')
+
 def process_metrics(metrics_folder, dataset_name, info):
     metrics_folder = sorted(metrics_folder)
     
@@ -13,12 +19,12 @@ def process_metrics(metrics_folder, dataset_name, info):
             metric_df = metric_df[['timestamp'] + info.metric_names]
             # add 16 hours to the timestamp column
             # metric_df['timestamp'] = metric_df['timestamp'] + 16 * 60 * 60
-            save_path = f'./parsed_data/{dataset_name}/metrics{idx}/{metric_file}'
+            save_path = os.path.join(output_path, f'parsed_data/{dataset_name}/metrics{idx}/{metric_file}')
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             metric_df.to_csv(save_path, index=False)
 
+
 if __name__ == '__main__':
-    root_path = os.getenv('ROOT_PATH')
     for dataset_name in ['SN', 'TT']:
         
         if dataset_name == 'SN':

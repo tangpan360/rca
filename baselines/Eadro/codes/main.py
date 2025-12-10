@@ -73,7 +73,9 @@ def collate(data):
     return batched_graph , torch.tensor(labels)
 
 def run(evaluation_epoch=10):
-    data_dir = os.path.join("./chunks", params["data"])
+    _script_dir = os.path.dirname(os.path.abspath(__file__))
+    _eadro_root = os.path.dirname(_script_dir)
+    data_dir = os.path.join(_eadro_root, "data", "chunks", params["data"])
 
     metadata = read_json(os.path.join(data_dir, "metadata.json"))
     event_num, node_num, metric_num =  metadata["event_num"], metadata["node_num"], metadata["metric_num"]
@@ -98,6 +100,7 @@ def run(evaluation_epoch=10):
 
     dump_scores(params["result_dir"], hash_id, scores, converge)
     logging.info("Current hash_id {}".format(hash_id))
+
 
 if "__main__" == __name__:
     run()

@@ -7,6 +7,12 @@ from drain3.template_miner_config import TemplateMinerConfig
 import pandas as pd
 import re
 
+# 设置相对路径
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_eadro_root = os.path.dirname(os.path.dirname(_script_dir))
+root_path = os.path.join(_eadro_root, 'dataset')
+output_path = os.path.join(_eadro_root, 'data')
+
 def extract_unix_timestamp(log: str) -> float:
     time_pattern = r"\d{4}-(?:[A-Za-z]{3}|\d{2})-\d{2} \d{2}:\d{2}:\d{2}\.\d+"
     match = re.search(time_pattern, log)
@@ -48,7 +54,7 @@ def extract_log_template(fault_free_dataset_path, fault_time_dataset_path, datas
         print(cluster)
     print("*"*90)
     
-    templates_save_path = os.path.join("./parsed_data", dataset_name)
+    templates_save_path = os.path.join(output_path, "parsed_data", dataset_name)
     os.makedirs(templates_save_path, exist_ok=True)
     
     templates_file_path = os.path.join(templates_save_path, "templates.json")
@@ -80,14 +86,12 @@ def extract_log_template(fault_free_dataset_path, fault_time_dataset_path, datas
                 df['service'].append(service)
                 df['events'].append(log_temp)
         df = pd.DataFrame(df)
-        df.to_csv(os.path.join("./parsed_data", dataset_name, "logs"+str(idx)+".csv"))
+        df.to_csv(os.path.join(output_path, "parsed_data", dataset_name, "logs"+str(idx)+".csv"))
                 
     print("======"*30)
-    
 
 
 if __name__ == '__main__':
-    root_path = os.getenv('ROOT_PATH')
     for dataset_name in ['SN', 'TT']:
         
         if dataset_name == 'SN':
