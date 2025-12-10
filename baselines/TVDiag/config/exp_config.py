@@ -67,6 +67,12 @@ class Config:
             self.ft_num = 3
             self.batch_size = 128
             self.aggregator = 'mean'
+        elif self.dataset == 'tt':
+            self.feat_drop = 0
+            self.patience = 10
+            self.ft_num = 3
+            self.batch_size = 128
+            self.aggregator = 'mean'
         else:
             raise NotImplementedError()
     

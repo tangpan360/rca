@@ -20,23 +20,23 @@ _baseline_root = os.path.dirname(_extractor_dir)
 _project_root = os.path.dirname(os.path.dirname(_baseline_root))
 
 # 动态路径拼接
-sn_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'sn')
-sn_processed = os.path.join(_baseline_root, 'data', 'sn', 'processed_data')
-sn_tmp = os.path.join(sn_processed, 'tmp')
+tt_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'tt')
+tt_processed = os.path.join(_baseline_root, 'data', 'tt', 'processed_data')
+tt_tmp = os.path.join(tt_processed, 'tmp')
 
-os.makedirs(sn_processed, exist_ok=True)
-os.makedirs(sn_tmp, exist_ok=True)
+os.makedirs(tt_processed, exist_ok=True)
+os.makedirs(tt_tmp, exist_ok=True)
 
-def parse_sn_log_timestamp(log_str):
-    """解析SN日志时间戳 [2022-Apr-17 10:12:50.490796]"""
-    pattern = r"\[(\d{4}-[A-Za-z]{3}-\d{2} \d{2}:\d{2}:\d{2}\.\d+)\]"
+def parse_tt_log_timestamp(log_str):
+    """解析TT日志时间戳 2022-04-17 18:26:20.677"""
+    pattern = r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})"
     match = re.search(pattern, log_str)
     if not match:
         return None
     
     time_str = match.group(1)
     try:
-        dt = pd.to_datetime(time_str, format="%Y-%b-%d %H:%M:%S.%f", utc=True)
+        dt = pd.to_datetime(time_str, format="%Y-%m-%d %H:%M:%S.%f", utc=True)
         return dt.timestamp()
     except:
         return None
@@ -44,10 +44,15 @@ def parse_sn_log_timestamp(log_str):
 def process_metrics(data_dir):
     """处理指标数据"""
     metrics = {}
-    services = ['compose-post-service', 'home-timeline-service', 'media-service', 
-                'nginx-web-server', 'post-storage-service', 'social-graph-service', 
-                'text-service', 'unique-id-service', 'url-shorten-service',
-                'user-mention-service', 'user-service', 'user-timeline-service']
+    services = ['ts-assurance-service', 'ts-auth-service', 'ts-basic-service',
+                'ts-cancel-service', 'ts-config-service', 'ts-contacts-service',
+                'ts-food-map-service', 'ts-food-service', 'ts-inside-payment-service',
+                'ts-notification-service', 'ts-order-other-service', 'ts-order-service',
+                'ts-payment-service', 'ts-preserve-service', 'ts-price-service',
+                'ts-route-plan-service', 'ts-route-service', 'ts-seat-service',
+                'ts-security-service', 'ts-station-service', 'ts-ticketinfo-service',
+                'ts-train-service', 'ts-travel-plan-service', 'ts-travel-service',
+                'ts-travel2-service', 'ts-user-service', 'ts-verification-code-service']
     
     for service in services:
         csv_path = os.path.join(data_dir, "metrics", f"{service}.csv")
@@ -70,7 +75,7 @@ def process_logs(data_dir):
         
         for service, log_list in logs_dict.items():
             for log_msg in log_list:
-                ts = parse_sn_log_timestamp(log_msg)
+                ts = parse_tt_log_timestamp(log_msg)
                 if ts is not None:
                     # 关键：log不需要偏移，直接UTC解析
                     all_logs.append({
@@ -165,10 +170,10 @@ def extract_data_window(data, start_time, end_time):
         return result
     return data
 
-def convert_metric_to_gaia_format(sn_metrics):
-    """SN metric格式 → Gaia metric格式"""
+def convert_metric_to_gaia_format(tt_metrics):
+    """TT metric格式 → Gaia metric格式"""
     gaia_metrics = {}
-    for service, service_df in sn_metrics.items():
+    for service, service_df in tt_metrics.items():
         pod_host = f"{service}_host1"
         gaia_metrics[pod_host] = {}
         
@@ -182,13 +187,13 @@ def convert_metric_to_gaia_format(sn_metrics):
 
 
 if __name__ == '__main__':
-    print("=== SN Raw Process for TVDiag ===")
+    print("=== TT Raw Process for TVDiag ===")
     
     # 1. 处理正常数据（用于训练检测器）
     print("Processing normal data...")
-    no_fault_dir = os.path.join(sn_raw_data, "no fault")
+    no_fault_dir = os.path.join(tt_raw_data, "no fault")
     normal_experiments = [d for d in os.listdir(no_fault_dir) 
-                            if d.startswith("SN.2022") and os.path.isdir(os.path.join(no_fault_dir, d))]
+                            if d.startswith("TT.2022") and os.path.isdir(os.path.join(no_fault_dir, d))]
     
     # 合并所有正常数据
     all_normal_metrics = defaultdict(list)
@@ -235,12 +240,12 @@ if __name__ == '__main__':
     
     # 2. 处理故障数据（按标签切片）
     print("Processing fault data...")
-    label_path = os.path.join(_project_root, "data", "processed_data", "sn", "label_sn.csv")
+    label_path = os.path.join(_project_root, "data", "processed_data", "tt", "label_tt.csv")
     label_df = pd.read_csv(label_path)
     
-    fault_dir = os.path.join(sn_raw_data, "data")
+    fault_dir = os.path.join(tt_raw_data, "data")
     fault_experiments = [d for d in os.listdir(fault_dir) 
-                        if d.startswith("SN.2022") and os.path.isdir(os.path.join(fault_dir, d))]
+                        if d.startswith("TT.2022") and os.path.isdir(os.path.join(fault_dir, d))]
     
     # 读取所有故障实验数据
     fault_data = {}
@@ -333,13 +338,13 @@ if __name__ == '__main__':
     
     # 4. 保存数据
     print("Saving processed data...")
-    pre_data_path = os.path.join(sn_processed, "pre-data.pkl")
-    post_data_path = os.path.join(sn_processed, "post-data-10.pkl")
+    pre_data_path = os.path.join(tt_processed, "pre-data.pkl")
+    post_data_path = os.path.join(tt_processed, "post-data-10.pkl")
     
     io_util.save(pre_data_path, gaia_pre_data)
     io_util.save(post_data_path, gaia_post_data)
     
-    print(f"✅ SN data processed successfully!")
+    print(f"✅ TT data processed successfully!")
     print(f"   Normal experiments: {len(normal_experiments)}")
     print(f"   Fault samples: {len(gaia_post_data)}")
     print(f"   Pre-data saved: {pre_data_path}")

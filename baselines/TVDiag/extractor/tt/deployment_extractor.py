@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-提取 SN 服务依赖图结构（nodes和edges）
+提取 TT 服务依赖图结构（nodes和edges）
 - 从trace数据提取服务调用关系
-- 从metric文件名提取服务-节点映射关系 (SN: service==node)
+- 从metric文件名提取服务-节点映射关系 (TT: service==node)
 - 生成nodes（服务列表）和edges（依赖关系）
 
 支持三种提取模式：
@@ -10,7 +10,7 @@
 2. Dynamic模式：每个故障案例单独从Trace提取edges
 3. Static模式：所有案例共享从全量Trace提取的全局edges
 
-注意：SN 数据集缺乏 Host 信息，因此默认不包含同节点影响边。
+注意：TT 数据集缺乏 Host 信息，因此默认不包含同节点影响边。
 """
 
 import os
@@ -72,7 +72,7 @@ def load_all_trace_data(trace_dir):
     print("构建调用关系 (Resolving parent names)...")
     span_service = full_trace_df[['span_id', 'service_name']].drop_duplicates(subset=['span_id'])
     span_service = span_service.rename(columns={'service_name': 'parent_name'})
-
+    
     # Left Join
     # 许多 Span 可能没有 parent (root spans)，或者 parent 不在数据集中
     merged_df = full_trace_df.merge(
@@ -108,22 +108,28 @@ def extract_edges(trace_df, nodes):
             
     return edges
 
-# 预定义的 SN 边信息
-PREDEFINED_SN_EDGES = {
-    "compose-post-service": ["compose-post-service", "home-timeline-service", "media-service", "post-storage-service", 
-                            "text-service", "unique-id-service", "user-service", "user-timeline-service"],
-    "home-timeline-service":["home-timeline-service", "post-storage-service", "social-graph-service"],
-    "post-storage-service": ["post-storage-service"],
-    "social-graph-service": ["social-graph-service", "user-service"],
-    "text-service": ["text-service", "url-shorten-service", "user-mention-service"],
-    "user-service": ["user-service"],
-    "user-timeline-service": ["user-timeline-service"],
-    "nginx-web-server": ["compose-post-service", "home-timeline-service", "nginx-web-server", "social-graph-service", "user-service"]
+# 预定义的 TT 边信息
+PREDEFINED_TT_EDGES = {
+    "ts-preserve-service": ["ts-preserve-service", "ts-seat-service", "ts-security-service", "ts-food-service", "ts-order-service", "ts-ticketinfo-service", "ts-travel-service", "ts-contacts-service", "ts-notification-service", "ts-user-service", "ts-station-service"],
+    "ts-seat-service":["ts-seat-service", "ts-order-service", "ts-config-service", "ts-travel-service"],   
+    "ts-cancel-service":["ts-inside-payment-service", "ts-order-other-service", "ts-order-service"],
+    "ts-security-service": ["ts-security-service", "ts-order-other-service", "ts-order-service"],
+    "ts-food-service":["ts-travel-service", "ts-food-map-service", "ts-station-service"],
+    "ts-travel-service": ["ts-travel-service", "ts-order-service", "ts-ticketinfo-service", "ts-train-service", "ts-route-service"],
+    "ts-inside-payment-service":["ts-payment-service", "ts-order-service"],
+    "ts-ticketinfo-service":["ts-ticketinfo-service", "ts-basic-service"],
+    "ts-basic-service":["ts-basic-service", "ts-route-service", "ts-price-service", "ts-train-service", "ts-station-service"],
+    "ts-order-other-service":["ts-station-service"],
+    "ts-order-service":["ts-order-service", "ts-station-service", "ts-assurance-service"],
+    "ts-auth-service":["ts-auth-service", "ts-verification-code-service"]
 }
 
-# 预定义的 SN 节点顺序 (字母排序)
-PREDEFINED_SN_NODES = ['compose-post-service', 'home-timeline-service', 'media-service', 'nginx-web-server', 'post-storage-service', 'social-graph-service', 
-                        'text-service', 'unique-id-service', 'url-shorten-service', 'user-mention-service', 'user-service', 'user-timeline-service']
+# 预定义的 TT 节点顺序 (字母排序)
+PREDEFINED_TT_NODES = ['ts-assurance-service', 'ts-auth-service', 'ts-basic-service', 'ts-cancel-service', 'ts-config-service', 'ts-contacts-service', 
+                        'ts-food-map-service', 'ts-food-service', 'ts-inside-payment-service', 'ts-notification-service', 'ts-order-other-service', 
+                        'ts-order-service', 'ts-payment-service', 'ts-preserve-service', 'ts-price-service', 'ts-route-plan-service', 'ts-route-service', 
+                        'ts-seat-service', 'ts-security-service', 'ts-station-service', 'ts-ticketinfo-service', 'ts-train-service', 'ts-travel-plan-service', 
+                        'ts-travel-service', 'ts-travel2-service', 'ts-user-service', 'ts-verification-code-service']
 
 def convert_predefined_edges_to_indices(predefined_edges, nodes):
     """
@@ -141,23 +147,25 @@ def convert_predefined_edges_to_indices(predefined_edges, nodes):
                 edges.append([src_idx, dst_idx])
     return edges
 
-def process_sn_graph(mode='dynamic'):
+def process_tt_graph(mode='dynamic'):
     print("=" * 60)
-    print(f"开始提取 SN 图结构 (Mode: {mode.upper()})")
+    print(f"开始提取 TT 图结构 (Mode: {mode.upper()})")
     print("=" * 60)
+
+    tt_processed_data = os.path.join(_project_root, "data", "processed_data", "tt")
+    tt_baseline_output = os.path.join(_baseline_root, "data", "tt", "processed_data", "extracted")
     
-    sn_processed_data = os.path.join(_project_root, "data", "processed_data", "sn")
-    sn_baseline_output = os.path.join(_baseline_root, "data", "sn", "processed_data", "extracted")
+    label_path = os.path.join(tt_processed_data, "label_tt.csv")
+    metric_dir = os.path.join(tt_processed_data, "metric")
+    trace_dir = os.path.join(tt_processed_data, "trace")
+    output_dir = tt_baseline_output
     
-    label_path = os.path.join(sn_processed_data, "label_sn.csv")
-    metric_dir = os.path.join(sn_processed_data, "metric")
-    trace_dir = os.path.join(sn_processed_data, "trace")
-    output_dir = sn_baseline_output
+    os.makedirs(output_dir, exist_ok=True)
     
     # 1. 根据模式决定节点获取方式
     if mode == 'predefined_static':
         # 预定义模式：使用预定义的节点
-        nodes = PREDEFINED_SN_NODES
+        nodes = PREDEFINED_TT_NODES
         print(f"使用预定义节点 ({len(nodes)} 个): {nodes}")
     else:
         # 数据驱动模式：从 metric 文件夹提取节点
@@ -179,7 +187,7 @@ def process_sn_graph(mode='dynamic'):
     if mode == 'predefined_static':
         # 使用预定义的边（节点已在上面设置）
         print("Building Predefined Fixed Graph...")
-        global_edges = convert_predefined_edges_to_indices(PREDEFINED_SN_EDGES, nodes)
+        global_edges = convert_predefined_edges_to_indices(PREDEFINED_TT_EDGES, nodes)
         print(f"Predefined Edges ({len(global_edges)})")
         
         for _, row in tqdm(label_df.iterrows(), total=len(label_df)):
@@ -249,4 +257,4 @@ if __name__ == "__main__":
     parser.add_argument('--mode', default='predefined_static', choices=['static', 'dynamic', 'predefined_static'])
     args = parser.parse_args()
     
-    process_sn_graph(mode=args.mode)
+    process_tt_graph(mode=args.mode)

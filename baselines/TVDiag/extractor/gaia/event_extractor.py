@@ -19,6 +19,7 @@ from extractor.metric_event_extractor import extract_metric_events
 from extractor.trace_event_extractor import extract_trace_events
 from extractor.log_event_extractor import extract_log_events
 from utils import io_util
+from config import get_window_size
 
 # 动态路径拼接
 gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')
@@ -43,6 +44,11 @@ label_df = pd.read_csv(label_path, index_col=0)
 
 metric_detectors = io_util.load(metric_detector_path)
 trace_detectors = io_util.load(trace_detector_path)
+
+# 从配置文件读取窗口大小
+window_size = get_window_size('gaia')
+print(f"[Gaia] 使用窗口大小: {window_size}ms")
+
 # 预加载Drain模型（避免循环内重复加载）
 miner = io_util.load(drain_model_path)
 
@@ -64,7 +70,7 @@ for idx, row in tqdm(label_df.iterrows(), total=label_df.shape[0]):
     metric_events_dic[idx]=metric_events
     # extract trace events
     st = time.time()
-    trace_events = extract_trace_events(chunk['trace'], trace_detectors)
+    trace_events = extract_trace_events(chunk['trace'], trace_detectors, window_size)
     trace_events_dic[idx] = trace_events
     trace_costs.append(time.time()-st)
     # extract log events

@@ -28,9 +28,17 @@ def slide_window(df, win_size):
 
 
 
-def extract_trace_events(df: pd.DataFrame, trace_detector: dict):
+def extract_trace_events(df: pd.DataFrame, trace_detector: dict, window_size: int = 20):
     """extract events using iforest from 
         trace dataframe
+    
+    Args:
+        df: trace dataframe
+        trace_detector: 训练好的检测器字典
+        window_size: 滑动窗口大小，必须与训练时一致！
+                    - Gaia: 30000 (毫秒)
+                    - SN: 10 (秒)
+                    - TT: 20 (秒)
     """
     events = []
     df.sort_values(by=['timestamp'], inplace=True, ascending=True)
@@ -38,7 +46,7 @@ def extract_trace_events(df: pd.DataFrame, trace_detector: dict):
     gp = df.groupby(['parent_name', 'service_name', 'operation'], dropna=True)
     events = []
 
-    win_size = 10
+    win_size = window_size  # 使用传入的窗口大小
     # detect events for every call
     for (src, dst, op), call_df in gp:
         name = src + '-' + dst +'-' + op

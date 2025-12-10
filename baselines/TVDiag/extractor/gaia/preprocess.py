@@ -14,6 +14,11 @@ _project_root = os.path.dirname(os.path.dirname(_baseline_root))
 sys.path.append(_extractor_dir)
 
 from utils import io_util
+from config import get_window_size
+
+# 数据集配置
+dataset = 'gaia'
+window_size = get_window_size(dataset)
 
 # 动态路径拼接
 gaia_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'gaia')
@@ -103,7 +108,7 @@ for name, call_dfs in normal_traces.items():
     }
     train_ds, train_500_ep, train_400_ep = [], [], []
     for call_df in call_dfs:
-        _, durs, err_500_ps, err_400_ps = slide_window(call_df, 30 * 1000)
+        _, durs, err_500_ps, err_400_ps = slide_window(call_df, window_size)
         train_ds.extend(durs)
         train_500_ep.extend(err_500_ps)
         train_400_ep.extend(err_400_ps)

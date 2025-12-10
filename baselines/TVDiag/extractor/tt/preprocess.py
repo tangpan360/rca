@@ -14,18 +14,23 @@ _project_root = os.path.dirname(os.path.dirname(_baseline_root))
 sys.path.append(_extractor_dir)
 
 from utils import io_util
+from config import get_window_size
+
+# 数据集配置
+dataset = 'tt'
+window_size = get_window_size(dataset)
 
 # 动态路径拼接
-sn_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'sn')
-sn_processed = os.path.join(_baseline_root, 'data', 'sn', 'processed_data')
-detector_dir = os.path.join(sn_processed, 'detector')
+tt_raw_data = os.path.join(_project_root, 'data', 'raw_data', 'tt')
+tt_processed = os.path.join(_baseline_root, 'data', 'tt', 'processed_data')
+detector_dir = os.path.join(tt_processed, 'detector')
 
 # 自动创建detector目录
 os.makedirs(detector_dir, exist_ok=True)
 
 # 输入文件路径
-label_path = os.path.join(_project_root, 'data', 'processed_data', 'sn', 'label_sn.csv')
-pre_data_path = os.path.join(sn_processed, 'pre-data.pkl')
+label_path = os.path.join(_project_root, 'data', 'processed_data', 'tt', 'label_tt.csv')
+pre_data_path = os.path.join(tt_processed, 'pre-data.pkl')
 
 labels = pd.read_csv(label_path)
 failure_pre_data: dict = io_util.load(pre_data_path)
@@ -113,7 +118,7 @@ for name, call_dfs in normal_traces.items():
     }
     train_ds, train_500_ep, train_400_ep = [], [], []
     for call_df in call_dfs:
-        _, durs, err_500_ps, err_400_ps = slide_window(call_df, 10)
+        _, durs, err_500_ps, err_400_ps = slide_window(call_df, window_size)
         train_ds.extend(durs)
         train_500_ep.extend(err_500_ps)
         train_400_ep.extend(err_400_ps)
