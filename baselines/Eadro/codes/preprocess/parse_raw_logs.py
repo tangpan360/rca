@@ -10,7 +10,8 @@ import re
 # 设置相对路径
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 _eadro_root = os.path.dirname(os.path.dirname(_script_dir))
-root_path = os.path.join(_eadro_root, 'dataset')
+_project_root = os.path.dirname(os.path.dirname(_eadro_root))
+root_path = os.path.join(_project_root, 'data', 'raw_data')
 output_path = os.path.join(_eadro_root, 'data')
 
 def extract_unix_timestamp(log: str) -> float:
