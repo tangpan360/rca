@@ -42,7 +42,8 @@ def extract_log_template(fault_free_dataset_path, fault_time_dataset_path, datas
             all_log_strs.extend(v)
     
     config = TemplateMinerConfig()
-    config.load('./drain3.ini')
+    config_path = os.path.join(_script_dir, 'drain3.ini')
+    config.load(config_path)
     config.profiling_eennabilmed = True
     miner = TemplateMiner(config=config)
     for log_str in all_log_strs:
