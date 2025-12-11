@@ -3,12 +3,20 @@ import logging
 import pickle
 
 def load_chunks(data_dir):
+    """加载训练、验证和测试数据集"""
     logging.info("Load from {}".format(data_dir))
+    
     with open(os.path.join(data_dir, "chunk_train.pkl"), "rb") as fr:
         chunk_train = pickle.load(fr)
+    
+    with open(os.path.join(data_dir, "chunk_val.pkl"), "rb") as fr:
+        chunk_val = pickle.load(fr)
+    
     with open(os.path.join(data_dir, "chunk_test.pkl"), "rb") as fr:
         chunk_test = pickle.load(fr)
-    return chunk_train, chunk_test
+    
+    logging.info(f"Loaded: {len(chunk_train)} train, {len(chunk_val)} val, {len(chunk_test)} test")
+    return chunk_train, chunk_val, chunk_test
 
 import json
 def read_json(filepath):

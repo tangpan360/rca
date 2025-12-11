@@ -235,7 +235,12 @@ class MainModel(nn.Module):
         node_probs = self.get_prob(locate_logits.detach()).cpu().numpy()
         y_pred = self.inference(batch_size, node_probs, detect_logits)
         
-        return {'loss': loss, 'y_pred': y_pred, 'y_prob': y_prob.detach().cpu().numpy(), 'pred_prob': node_probs}
+        return {'loss': loss, 
+                'detect_loss': detect_loss,
+                'locate_loss': locate_loss,
+                'y_pred': y_pred, 
+                'y_prob': y_prob.detach().cpu().numpy(), 
+                'pred_prob': node_probs}
         
     def inference(self, batch_size, node_probs, detect_logits=None):
         node_list = np.flip(node_probs.argsort(axis=1), axis=1)

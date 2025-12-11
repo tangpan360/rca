@@ -30,7 +30,7 @@ parser.add_argument("--random_seed", default=42, type=int)
 
 ### Training params
 parser.add_argument("--gpu", default=True, type=lambda x: x.lower() == "true")
-parser.add_argument("--epoches", default=50, type=int)
+parser.add_argument("--epoches", default=500, type=int)
 parser.add_argument("--batch_size", default=256, type=int)
 parser.add_argument("--lr", default=0.001, type=float)
 parser.add_argument("--patience", default=10, type=int)
@@ -87,16 +87,18 @@ def run(evaluation_epoch=10):
     seed_everything(params["random_seed"])
     device = get_device(params["gpu"])
 
-    train_chunks, test_chunks = load_chunks(data_dir)
+    train_chunks, val_chunks, test_chunks = load_chunks(data_dir)
 
     train_data = chunkDataset(train_chunks, node_num, edges)
+    val_data = chunkDataset(val_chunks, node_num, edges)
     test_data = chunkDataset(test_chunks, node_num, edges)
     
     train_dl = DataLoader(train_data, batch_size=params["batch_size"], shuffle=True, collate_fn=collate, pin_memory=True)
+    val_dl = DataLoader(val_data, batch_size=params["batch_size"], shuffle=False, collate_fn=collate, pin_memory=True)
     test_dl = DataLoader(test_data, batch_size=params["batch_size"], shuffle=False, collate_fn=collate, pin_memory=True)
 
     model = BaseModel(event_num, metric_num, node_num, device, **params)
-    scores, converge = model.fit(train_dl, test_dl, evaluation_epoch=evaluation_epoch)
+    scores, converge = model.fit(train_dl, val_dl, test_dl, evaluation_epoch=evaluation_epoch)
 
     dump_scores(params["result_dir"], hash_id, scores, converge)
     logging.info("Current hash_id {}".format(hash_id))

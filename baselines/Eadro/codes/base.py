@@ -27,7 +27,8 @@ class BaseModel(nn.Module):
         self.model.eval()
         hrs, ndcgs = np.zeros(5), np.zeros(5)
         TP, TN, FP, FN = 0, 0, 0, 0
-        batch_cnt, epoch_loss = 0, 0.0 
+        batch_cnt, epoch_loss = 0, 0.0
+        detect_loss_sum, locate_loss_sum = 0.0, 0.0
         
         with torch.no_grad():
             for graph, ground_truths in test_loader:
@@ -46,10 +47,19 @@ class BaseModel(nn.Module):
                                 hrs[j] += int(rank <= j)
                                 ndcgs[j] += ndcg_score([res["y_prob"][idx]], [res["pred_prob"][idx]], k=j+1)
                 epoch_loss += res["loss"].item()
+                detect_loss_sum += res["detect_loss"].item()
+                locate_loss_sum += res["locate_loss"].item()
                 batch_cnt += 1
         
         pos = TP+FN
+        avg_loss = epoch_loss / batch_cnt if batch_cnt > 0 else 0
+        avg_detect_loss = detect_loss_sum / batch_cnt if batch_cnt > 0 else 0
+        avg_locate_loss = locate_loss_sum / batch_cnt if batch_cnt > 0 else 0
+        
         eval_results = {
+                "loss": avg_loss,
+                "detect_loss": avg_detect_loss,
+                "locate_loss": avg_locate_loss,
                 "F1": TP*2.0/(TP+FP+pos) if (TP+FP+pos)>0 else 0,
                 "Rec": TP*1.0/pos if pos > 0 else 0,
                 "Pre": TP*1.0/(TP+FP) if (TP+FP) > 0 else 0}
@@ -62,14 +72,17 @@ class BaseModel(nn.Module):
 
         return eval_results
     
-    def fit(self, train_loader, test_loader=None, evaluation_epoch=10):
-        best_hr1, coverage, best_state, eval_res = -1, None, None, None # evaluation
-        pre_loss, worse_count = float("inf"), 0 # early break
+    def fit(self, train_loader, val_loader, test_loader, evaluation_epoch=10):
+        """使用验证集locate_loss进行模型选择和早停"""
+        best_val_locate_loss = float("inf")
+        coverage, best_state, eval_res = None, None, None
+        worse_count = 0  # 验证集locate_loss不下降计数
 
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
         #optimizer = torch.optim.SGD(self.model.parameters(), lr=self.lr, momentum=0.99)
         
         for epoch in range(1, self.epoches+1):
+            # 训练
             self.model.train()
             batch_cnt, epoch_loss = 0, 0.0
             epoch_time_start = time.time()
@@ -89,26 +102,34 @@ class BaseModel(nn.Module):
             epoch_loss = epoch_loss / batch_cnt
             logging.info("Epoch {}/{}, training loss: {:.5f} [{:.2f}s]".format(epoch, self.epoches, epoch_loss, epoch_time_elapsed))
 
-            ####### early break #######
-            if epoch_loss > pre_loss:
+            # 每个epoch在验证集上评估
+            val_results = self.evaluate(val_loader, datatype="Val")
+            val_locate_loss = val_results["locate_loss"]
+            
+            # 基于验证集locate_loss进行模型选择和早停
+            if val_locate_loss < best_val_locate_loss:
+                best_val_locate_loss = val_locate_loss
+                eval_res, coverage = val_results, epoch
+                best_state = copy.deepcopy(self.model.state_dict())
+                self.save_model(best_state)
+                worse_count = 0
+                logging.info("  → New best Val locate_loss: {:.5f}".format(best_val_locate_loss))
+            else:
                 worse_count += 1
                 if self.patience > 0 and worse_count >= self.patience:
-                    logging.info("Early stop at epoch: {}".format(epoch))
+                    logging.info("Early stop at epoch {} (val locate_loss not improved for {} epochs)".format(epoch, self.patience))
                     break
-            else: worse_count = 0
-            pre_loss = epoch_loss
-
-            ####### Evaluate test data during training #######
-            if (epoch+1) % evaluation_epoch == 0:
-                test_results = self.evaluate(test_loader, datatype="Test")
-                if test_results["HR@1"] > best_hr1:
-                    best_hr1, eval_res, coverage  = test_results["HR@1"], test_results, epoch
-                    best_state = copy.deepcopy(self.model.state_dict())
-
-                self.save_model(best_state)
+        
+        # 训练结束，加载最佳模型在测试集上最终评估
+        if best_state is not None:
+            self.model.load_state_dict(best_state)
+            logging.info("\n* Best model from epoch {} with Val locate_loss: {:.5f}".format(coverage, best_val_locate_loss))
             
-        if coverage > 5:
-            logging.info("* Best result got at epoch {} with HR@1: {:.4f}".format(coverage, best_hr1))
+            # 在测试集上最终评估
+            test_results = self.evaluate(test_loader, datatype="Test")
+            logging.info("* Test results: " + 
+                        ", ".join(["{}: {:.4f}".format(k, v) for k, v in test_results.items()]))
+            eval_res = test_results
         else:
             logging.info("Unable to convergence!")
 
