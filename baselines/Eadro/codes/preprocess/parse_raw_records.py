@@ -85,8 +85,8 @@ def process_raw_records(dataset_path, data_name):
 if __name__ == "__main__":
     for dataset_name in ['SN', 'TT']:
         if dataset_name == 'SN':
-            dataset_path = os.path.join(root_path, 'SN Dataset')
+            dataset_path = os.path.join(root_path, 'sn')
         elif dataset_name == 'TT':
-            dataset_path = os.path.join(root_path, 'TT Dataset')
+            dataset_path = os.path.join(root_path, 'tt')
     
         process_raw_records(dataset_path, dataset_name)

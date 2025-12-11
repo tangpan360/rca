@@ -23,11 +23,10 @@ def extract_unix_timestamp(log: str) -> float:
     time_str = match.group(0)
     
     try:
-        unix_time = pd.to_datetime(time_str, format="%Y-%b-%d %H:%M:%S.%f").timestamp()
+        unix_time = pd.to_datetime(time_str, format="%Y-%b-%d %H:%M:%S.%f", utc=True).timestamp()
     except ValueError:
-        unix_time = pd.to_datetime(time_str, format="%Y-%m-%d %H:%M:%S.%f").timestamp()
+        unix_time = pd.to_datetime(time_str, format="%Y-%m-%d %H:%M:%S.%f", utc=True).timestamp()
     
-    unix_time -= 8 * 3600
     return unix_time
 
 def extract_log_template(fault_free_dataset_path, fault_time_dataset_path, dataset_name):
@@ -96,10 +95,10 @@ if __name__ == '__main__':
     for dataset_name in ['SN', 'TT']:
         
         if dataset_name == 'SN':
-            fault_free_dataset_path = os.path.join(root_path, 'SN Dataset', 'no fault')
-            fault_time_dataset_path = os.path.join(root_path, 'SN Dataset', 'data')
+            fault_free_dataset_path = os.path.join(root_path, 'sn', 'no fault')
+            fault_time_dataset_path = os.path.join(root_path, 'sn', 'data')
         elif dataset_name == 'TT':
-            fault_free_dataset_path = os.path.join(root_path, 'TT Dataset', 'no fault')
-            fault_time_dataset_path = os.path.join(root_path, 'TT Dataset', 'data')
+            fault_free_dataset_path = os.path.join(root_path, 'tt', 'no fault')
+            fault_time_dataset_path = os.path.join(root_path, 'tt', 'data')
     
         extract_log_template(fault_free_dataset_path, fault_time_dataset_path, dataset_name)

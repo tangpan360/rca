@@ -21,12 +21,8 @@ def parse_spans(spans_path, dataset_name, info):
             for span in trace['spans']:
                 service = processes[span['processID']]['serviceName']
                 service = service + '-' + str(info.service2nid[service])
-                startTime = int(span['startTime']) // 1_000_000
-                # add 8 hours to the timestamp
-                # https://github.com/BEbillionaireUSD/Eadro/issues/11#issuecomment-1887219310
-                startTime -= 8 * 3600
-                
-                latency = int(span['duration']) / 1_000_000
+                startTime = int(span['startTime'])  # 整数秒
+                latency = float(span['duration'])   # 浮点秒（保留微秒精度）
                 t_s_l.append((startTime, service, latency))
         
         # print(len(t_s_l));exit()
@@ -58,9 +54,9 @@ if __name__ == '__main__':
         info = Info('trainticket') if dataset_name == 'TT' else Info('socialnetwork')
         
         if dataset_name == 'SN':
-            dataset_path = os.path.join(root_path, 'SN Dataset', 'data')
+            dataset_path = os.path.join(root_path, 'sn', 'data')
         elif dataset_name == 'TT':
-            dataset_path = os.path.join(root_path, 'TT Dataset', 'data')
+            dataset_path = os.path.join(root_path, 'tt', 'data')
     
         # list all folders in the dataset path
         folders = [f for f in os.listdir(dataset_path) if os.path.isdir(os.path.join(dataset_path, f))]

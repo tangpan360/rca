@@ -29,10 +29,10 @@ if __name__ == '__main__':
     for dataset_name in ['SN', 'TT']:
         
         if dataset_name == 'SN':
-            dataset_path = os.path.join(root_path, 'SN Dataset', 'data')
+            dataset_path = os.path.join(root_path, 'sn', 'data')
             info = Info('socialnetwork')
         elif dataset_name == 'TT':
-            dataset_path = os.path.join(root_path, 'TT Dataset', 'data')
+            dataset_path = os.path.join(root_path, 'tt', 'data')
             info = Info('TrainTicket')
     
         # list all folders in the dataset path
