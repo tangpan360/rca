@@ -11,16 +11,17 @@ from model import MainModel
 from sklearn.metrics import ndcg_score
 
 class BaseModel(nn.Module):
-    def __init__(self, event_num, metric_num, node_num, device, lr=1e-3, epoches=50, patience=5, result_dir='./', hash_id=None, **kwargs):
+    def __init__(self, event_num, metric_num, node_num, device, lr=1e-3, epoches=50, patience=5, result_dir='./', hash_id=None, enable_fault_classification=False, **kwargs):
         super(BaseModel, self).__init__()
         
         self.epoches = epoches
         self.lr = lr
         self.patience = patience # > 0: use early stop
         self.device = device
+        self.enable_fault_classification = enable_fault_classification
 
         self.model_save_dir = os.path.join(result_dir, hash_id)
-        self.model = MainModel(event_num, metric_num, node_num, device, **kwargs)
+        self.model = MainModel(event_num, metric_num, node_num, device, enable_fault_classification=enable_fault_classification, **kwargs)
         self.model.to(device)
     
     def evaluate(self, test_loader, datatype="Test"):
@@ -37,11 +38,15 @@ class BaseModel(nn.Module):
         
         with torch.no_grad():
             for graph, ground_truths, fault_types in test_loader:
-                res = self.model.forward(graph.to(self.device), ground_truths, fault_types)
-                
-                # 收集故障分类预测和真实值
-                fault_type_preds.extend(res["fault_type_pred"])
-                fault_type_truths.extend(fault_types.cpu().numpy())
+                # 根据是否启用故障分类来决定是否传递fault_types
+                if self.enable_fault_classification:
+                    res = self.model.forward(graph.to(self.device), ground_truths, fault_types)
+                    # 收集故障分类预测和真实值
+                    if "fault_type_pred" in res:
+                        fault_type_preds.extend(res["fault_type_pred"])
+                        fault_type_truths.extend(fault_types.cpu().numpy())
+                else:
+                    res = self.model.forward(graph.to(self.device), ground_truths, None)
                 for idx, faulty_nodes in enumerate(res["y_pred"]):
                     culprit = ground_truths[idx].item()
                     if culprit == -1:
@@ -86,8 +91,8 @@ class BaseModel(nn.Module):
         # 添加 avg@3
         eval_results["avg@3"] = np.mean([eval_results["HR@1"], eval_results["HR@2"], eval_results["HR@3"]])
         
-        # 添加故障分类评估（使用TVDiag的FTI_eval逻辑）
-        if len(fault_type_preds) > 0 and len(fault_type_truths) > 0:
+        # 添加故障分类评估（只在启用时计算）
+        if self.enable_fault_classification and len(fault_type_preds) > 0 and len(fault_type_truths) > 0:
             from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
             
             # 计算故障分类指标
@@ -121,7 +126,11 @@ class BaseModel(nn.Module):
             epoch_time_start = time.time()
             for graph, label, fault_type in train_loader:
                 optimizer.zero_grad()
-                loss = self.model.forward(graph.to(self.device), label, fault_type)['loss']
+                # 根据是否启用故障分类来决定是否传递fault_type
+                if self.enable_fault_classification:
+                    loss = self.model.forward(graph.to(self.device), label, fault_type)['loss']
+                else:
+                    loss = self.model.forward(graph.to(self.device), label, None)['loss']
                 loss.backward()
                 # if self.debug:
                 #     for name, parms in self.model.named_parameters():

@@ -58,6 +58,10 @@ parser.add_argument("--activation", default=0.2, type=float, help="use LeakyReLU
 parser.add_argument("--data", type=str, required=True)
 parser.add_argument("--result_dir", default="../result/")
 
+##### Task params
+parser.add_argument("--enable_fault_classification", default=True, type=lambda x: x.lower() == "true",
+                   help="Enable fault type classification task. Use True/False (default: False, RCL only)")
+
 params = vars(parser.parse_args())
 
 import logging
@@ -88,6 +92,12 @@ def run(evaluation_epoch=10):
     params["hash_id"] = hash_id
     seed_everything(params["random_seed"])
     device = get_device(params["gpu"])
+    
+    # 显示当前运行模式
+    if params["enable_fault_classification"]:
+        logging.info("Mode: Fault Classification + Root Cause Localization")
+    else:
+        logging.info("Mode: Root Cause Localization Only")
 
     train_chunks, val_chunks, test_chunks = load_chunks(data_dir)
 
