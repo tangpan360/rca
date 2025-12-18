@@ -25,7 +25,8 @@ class BaseModel(nn.Module):
     
     def evaluate(self, test_loader, datatype="Test"):
         self.model.eval()
-        hrs, ndcgs = np.zeros(5), np.zeros(5)
+        hrs = np.zeros(5)
+        mrrs = []  # MRR@3
         TP, TN, FP, FN = 0, 0, 0, 0
         batch_cnt, epoch_loss = 0, 0.0
         detect_loss_sum, locate_loss_sum = 0.0, 0.0
@@ -43,9 +44,15 @@ class BaseModel(nn.Module):
                         else: 
                             TP+=1
                             rank = list(faulty_nodes).index(culprit)
+                            # HR@1/2/3/4/5
                             for j in range(5):
                                 hrs[j] += int(rank <= j)
-                                ndcgs[j] += ndcg_score([res["y_prob"][idx]], [res["pred_prob"][idx]], k=j+1)
+                            # MRR@3 (与TVDiag一致)
+                            actual_rank = rank + 1  # rank从0开始，实际排名从1开始
+                            if actual_rank <= 3:
+                                mrrs.append(1.0 / actual_rank)
+                            else:
+                                mrrs.append(0)
                 epoch_loss += res["loss"].item()
                 detect_loss_sum += res["detect_loss"].item()
                 locate_loss_sum += res["locate_loss"].item()
@@ -64,9 +71,15 @@ class BaseModel(nn.Module):
                 "Rec": TP*1.0/pos if pos > 0 else 0,
                 "Pre": TP*1.0/(TP+FP) if (TP+FP) > 0 else 0}
         
-        for j in [1, 3, 5]:
-            eval_results["HR@"+str(j)] = hrs[j-1]*1.0/pos
-            eval_results["ndcg@"+str(j)] = ndcgs[j-1]*1.0/pos
+        # 添加 HR@1/2/3/4/5
+        for j in range(1, 6):
+            eval_results["HR@"+str(j)] = hrs[j-1]*1.0/pos if pos > 0 else 0
+        
+        # 添加 MRR@3
+        eval_results["MRR@3"] = np.mean(mrrs) if len(mrrs) > 0 else 0
+        
+        # 添加 avg@3
+        eval_results["avg@3"] = np.mean([eval_results["HR@1"], eval_results["HR@2"], eval_results["HR@3"]])
             
         logging.info("{} -- {}".format(datatype, ", ".join([k+": "+str(f"{v:.4f}") for k, v in eval_results.items()])))
 
