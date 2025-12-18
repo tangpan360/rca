@@ -31,9 +31,17 @@ class BaseModel(nn.Module):
         batch_cnt, epoch_loss = 0, 0.0
         detect_loss_sum, locate_loss_sum = 0.0, 0.0
         
+        # 故障分类评估
+        fault_type_preds = []
+        fault_type_truths = []
+        
         with torch.no_grad():
-            for graph, ground_truths in test_loader:
-                res = self.model.forward(graph.to(self.device), ground_truths)
+            for graph, ground_truths, fault_types in test_loader:
+                res = self.model.forward(graph.to(self.device), ground_truths, fault_types)
+                
+                # 收集故障分类预测和真实值
+                fault_type_preds.extend(res["fault_type_pred"])
+                fault_type_truths.extend(fault_types.cpu().numpy())
                 for idx, faulty_nodes in enumerate(res["y_pred"]):
                     culprit = ground_truths[idx].item()
                     if culprit == -1:
@@ -66,10 +74,7 @@ class BaseModel(nn.Module):
         eval_results = {
                 "loss": avg_loss,
                 "detect_loss": avg_detect_loss,
-                "locate_loss": avg_locate_loss,
-                "F1": TP*2.0/(TP+FP+pos) if (TP+FP+pos)>0 else 0,
-                "Rec": TP*1.0/pos if pos > 0 else 0,
-                "Pre": TP*1.0/(TP+FP) if (TP+FP) > 0 else 0}
+                "locate_loss": avg_locate_loss}
         
         # 添加 HR@1/2/3/4/5
         for j in range(1, 6):
@@ -80,6 +85,21 @@ class BaseModel(nn.Module):
         
         # 添加 avg@3
         eval_results["avg@3"] = np.mean([eval_results["HR@1"], eval_results["HR@2"], eval_results["HR@3"]])
+        
+        # 添加故障分类评估（使用TVDiag的FTI_eval逻辑）
+        if len(fault_type_preds) > 0 and len(fault_type_truths) > 0:
+            from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
+            
+            # 计算故障分类指标
+            fault_acc = accuracy_score(fault_type_truths, fault_type_preds)
+            fault_precision = precision_score(fault_type_truths, fault_type_preds, average='macro', zero_division=0)
+            fault_recall = recall_score(fault_type_truths, fault_type_preds, average='macro', zero_division=0)
+            fault_f1 = f1_score(fault_type_truths, fault_type_preds, average='macro', zero_division=0)
+            
+            eval_results["Fault_Acc"] = fault_acc
+            eval_results["Fault_Pre"] = fault_precision
+            eval_results["Fault_Rec"] = fault_recall  
+            eval_results["Fault_F1"] = fault_f1
             
         logging.info("{} -- {}".format(datatype, ", ".join([k+": "+str(f"{v:.4f}") for k, v in eval_results.items()])))
 
@@ -99,9 +119,9 @@ class BaseModel(nn.Module):
             self.model.train()
             batch_cnt, epoch_loss = 0, 0.0
             epoch_time_start = time.time()
-            for graph, label in train_loader:
+            for graph, label, fault_type in train_loader:
                 optimizer.zero_grad()
-                loss = self.model.forward(graph.to(self.device), label)['loss']
+                loss = self.model.forward(graph.to(self.device), label, fault_type)['loss']
                 loss.backward()
                 # if self.debug:
                 #     for name, parms in self.model.named_parameters():

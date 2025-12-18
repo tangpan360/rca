@@ -12,7 +12,9 @@ class chunkDataset(Dataset): #[node_num, T, else]
             graph.ndata["logs"] = torch.FloatTensor(chunk["logs"])
             graph.ndata["metrics"] = torch.FloatTensor(chunk["metrics"])
             graph.ndata["traces"] = torch.FloatTensor(chunk["traces"])
-            self.data.append((graph, chunk["culprit"]))
+            # 添加故障类型支持
+            fault_type = chunk['fault_type']
+            self.data.append((graph, chunk["culprit"], fault_type))
                 
     def __len__(self):
         return len(self.data)
@@ -68,9 +70,9 @@ def get_device(gpu):
     
 
 def collate(data):
-    graphs, labels = map(list, zip(*data))
+    graphs, labels, fault_types = map(list, zip(*data))
     batched_graph = dgl.batch(graphs)
-    return batched_graph , torch.tensor(labels)
+    return batched_graph, torch.tensor(labels), torch.tensor(fault_types)
 
 def run(evaluation_epoch=10):
     _script_dir = os.path.dirname(os.path.abspath(__file__))

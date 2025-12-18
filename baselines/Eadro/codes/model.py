@@ -207,13 +207,14 @@ class MainModel(nn.Module):
 
         self.encoder = MultiSourceEncoder(event_num, metric_num, node_num, device, debug=debug, alpha=alpha, **kwargs)
 
-        self.detector = FullyConnected(self.encoder.feat_out_dim, 2, kwargs['detect_hiddens']).to(device)
+        # 故障类型分类器（3分类：cpu_load, network_delay, network_loss）
+        self.detector = FullyConnected(self.encoder.feat_out_dim, 3, kwargs['detect_hiddens']).to(device)
         self.decoder_criterion = nn.CrossEntropyLoss()
         self.locator = FullyConnected(self.encoder.feat_out_dim, node_num, kwargs['locate_hiddens']).to(device)
         self.locator_criterion = nn.CrossEntropyLoss(ignore_index=-1)
         self.get_prob = nn.Softmax(dim=-1)
 
-    def forward(self, graph, fault_indexs):
+    def forward(self, graph, fault_indexs, fault_types=None):
         batch_size = graph.batch_size
         embeddings = self.encoder(graph) #[bz, feat_out_dim]
         
@@ -221,24 +222,29 @@ class MainModel(nn.Module):
         for i in range(batch_size):
             if fault_indexs[i] > -1: 
                 y_prob[i, fault_indexs[i]] = 1
-        y_anomaly = torch.zeros(batch_size).long().to(self.device)
-        for i in range(batch_size):
-            y_anomaly[i] = int(fault_indexs[i] > -1)
+
+        if fault_types is not None:
+            y_fault_types = fault_types.to(self.device)
+        else:
+            y_fault_types = torch.zeros(batch_size).long().to(self.device)
 
 
         locate_logits = self.locator(embeddings)
         locate_loss = self.locator_criterion(locate_logits, fault_indexs.to(self.device))
         detect_logits = self.detector(embeddings)
-        detect_loss = self.decoder_criterion(detect_logits, y_anomaly) 
+        detect_loss = self.decoder_criterion(detect_logits, y_fault_types) 
         loss = self.alpha * detect_loss + (1-self.alpha) * locate_loss
 
         node_probs = self.get_prob(locate_logits.detach()).cpu().numpy()
         y_pred = self.inference(batch_size, node_probs, detect_logits)
         
+        fault_type_pred = detect_logits.detach().cpu().numpy().argmax(axis=1)
+        
         return {'loss': loss, 
                 'detect_loss': detect_loss,
                 'locate_loss': locate_loss,
-                'y_pred': y_pred, 
+                'y_pred': y_pred[0],  # 根因定位预测
+                'fault_type_pred': y_pred[1],  # 故障类型预测
                 'y_prob': y_prob.detach().cpu().numpy(), 
                 'pred_prob': node_probs}
         
@@ -246,16 +252,10 @@ class MainModel(nn.Module):
         node_list = np.flip(node_probs.argsort(axis=1), axis=1)
         
         y_pred = []
+        fault_type_pred = detect_logits.detach().cpu().numpy().argmax(axis=1).squeeze() if detect_logits is not None else None
+        
+        # 直接进行根因定位，不再依赖异常检测门控
         for i in range(batch_size):
-            detect_pred = detect_logits.detach().cpu().numpy().argmax(axis=1).squeeze()
-            if detect_pred[i] < 1: y_pred.append([-1])
-            else: y_pred.append(node_list[i])
+            y_pred.append(node_list[i])
         
-        return y_pred
-
-
-    
-
-        
-
-        
+        return y_pred, fault_type_pred
