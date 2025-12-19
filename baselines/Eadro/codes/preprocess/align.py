@@ -129,9 +129,12 @@ def get_all_chunks(name, chunk_lenth=10, **kwargs):
     bench = "TrainTicket" if name == "TT" else "SocialNetwork"
     info = Info(bench)
     print('# Node num:', info.node_num)
-  
+
     # 加载预定义标签和故障类型映射
     label_df, fault_type_to_idx = load_predefined_labels(name)
+    
+    # 自动适配chunk_lenth为数据duration
+    chunk_lenth = int(label_df['duration'].iloc[0])
     
     print("\n\n", "^"*20, "Using predefined split from label CSV", "^"*20)
     
