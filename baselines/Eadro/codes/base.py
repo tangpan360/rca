@@ -29,7 +29,7 @@ class BaseModel(nn.Module):
         hrs = np.zeros(5)
         mrrs = []  # MRR@3
         TP, TN, FP, FN = 0, 0, 0, 0
-        batch_cnt, epoch_loss = 0, 0.0
+        batch_cnt, epoch_loss = 0, 0.0 
         detect_loss_sum, locate_loss_sum = 0.0, 0.0
         
         # 故障分类评估

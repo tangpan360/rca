@@ -16,6 +16,12 @@ def load_predefined_labels(name):
                                name.lower(), f'label_{name.lower()}.csv')
     df = pd.read_csv(label_path)
     
+    # 为Gaia转换时间格式
+    if name == "GAIA":
+        df['st_timestamp'] = pd.to_datetime(df['st_time']).astype(int) // 10**9
+        df['ed_timestamp'] = df['st_timestamp'] + 600
+        df['service'] = df['instance']  # 使用instance作为service
+    
     # 创建故障类型映射
     fault_types = df['anomaly_type'].unique()
     fault_type_to_idx = {ft: idx for idx, ft in enumerate(sorted(fault_types))}
@@ -48,7 +54,7 @@ def get_basic(info, label_df, fault_type_to_idx, **kwargs):
         # 将左闭右开 [st, ed) 转换为闭区间 (st, ed-1)
         # 因为 single_process.py 使用 range(s, e+1) 处理闭区间
         s = int(row['st_timestamp'])
-        e = int(row['ed_timestamp']) - 1  # 减1转换为闭区间的右端点
+        e = int(row['ed_timestamp'])
         intervals.append((s, e))
         
         # 服务名映射到节点ID
@@ -121,20 +127,25 @@ def get_chunks(info, name, chunk_lenth, label_df, fault_type_to_idx, idx, **kwar
     return chunks, chunk_data_types
 
 import numpy as np
+from sklearn.model_selection import train_test_split
+
 def get_all_chunks(name, chunk_lenth=10, **kwargs):
     """使用预定义标签生成所有chunks (按批次处理)"""
     aim_dir = os.path.join(output_path, "chunks", name)
     os.makedirs(aim_dir, exist_ok=True)
     
-    bench = "TrainTicket" if name == "TT" else "SocialNetwork"
-    info = Info(bench)
+    bench_map = {"TT": "TrainTicket", "SN": "SocialNetwork", "GAIA": "gaia"}
+    info = Info(bench_map[name])
     print('# Node num:', info.node_num)
 
     # 加载预定义标签和故障类型映射
     label_df, fault_type_to_idx = load_predefined_labels(name)
     
-    # 自动适配chunk_lenth为数据duration
-    chunk_lenth = int(label_df['duration'].iloc[0])
+    # 自动适配chunk_lenth
+    if name == "GAIA":
+        chunk_lenth = 20  # Gaia: 600s分成20个slots，每slot30s
+    else:
+        chunk_lenth = int(label_df['duration'].iloc[0])  # SN/TT使用原逻辑
     
     print("\n\n", "^"*20, "Using predefined split from label CSV", "^"*20)
     
@@ -217,15 +228,20 @@ def split_chunks(name, concat=False, **kwargs):
     else:
         chunks, chunk_data_types = get_all_chunks(name=name, **kwargs)
 
-    print("\n *** Using predefined train/val/test split...")
+    print("\n *** Creating train/val/test split...")
     
-    # 按 data_type 划分
-    train_chunks = {k: v for k, v in chunks.items() 
-                   if chunk_data_types.get(k) == 'train'}
-    val_chunks = {k: v for k, v in chunks.items() 
-                 if chunk_data_types.get(k) == 'val'}
+    # 先获取原始的train和test数据
+    original_train_chunks = {k: v for k, v in chunks.items() 
+                           if chunk_data_types.get(k) == 'train'}
     test_chunks = {k: v for k, v in chunks.items() 
                   if chunk_data_types.get(k) == 'test'}
+    
+    # 从train中分出30%作为val
+    train_keys = list(original_train_chunks.keys())
+    train_keys, val_keys = train_test_split(train_keys, test_size=0.3, random_state=42)
+    
+    train_chunks = {k: original_train_chunks[k] for k in train_keys}
+    val_chunks = {k: original_train_chunks[k] for k in val_keys}
     
     aim = name[0] if concat else name
     
@@ -238,7 +254,7 @@ def split_chunks(name, concat=False, **kwargs):
         pickle.dump(test_chunks, fw)
     
     # 打印统计
-    print(f"\n=== Predefined Split Statistics ===")
+    print(f"\n=== Split Statistics (Train: 70%, Val: 30% from train, Test: original) ===")
     print(f"Train chunks: {len(train_chunks)}")
     print(f"Val chunks: {len(val_chunks)}")
     print(f"Test chunks: {len(test_chunks)}")

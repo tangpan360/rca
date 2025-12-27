@@ -210,7 +210,8 @@ class MainModel(nn.Module):
 
         # 条件创建故障分类器
         if self.enable_fault_classification:
-            self.detector = FullyConnected(self.encoder.feat_out_dim, 3, kwargs['detect_hiddens']).to(device)
+            num_fault_types = kwargs.get('num_fault_types', 3)
+            self.detector = FullyConnected(self.encoder.feat_out_dim, num_fault_types, kwargs['detect_hiddens']).to(device)
             self.decoder_criterion = nn.CrossEntropyLoss()
         else:
             self.detector = None

@@ -33,7 +33,7 @@ parser.add_argument("--random_seed", default=42, type=int)
 ### Training params
 parser.add_argument("--gpu", default=True, type=lambda x: x.lower() == "true")
 parser.add_argument("--epoches", default=500, type=int)
-parser.add_argument("--batch_size", default=256, type=int)
+parser.add_argument("--batch_size", default=8, type=int)
 parser.add_argument("--lr", default=0.001, type=float)
 parser.add_argument("--patience", default=10, type=int)
 
@@ -87,6 +87,11 @@ def run(evaluation_epoch=10):
     event_num, node_num, metric_num =  metadata["event_num"], metadata["node_num"], metadata["metric_num"]
     edges = metadata["edges"]
     params["chunk_lenth"] = metadata["chunk_lenth"]
+
+    # 动态读取故障类型数量（GAIA=5，SN/TT=3）
+    num_fault_types = len(metadata["fault_type_mapping"]) if "fault_type_mapping" in metadata else 3
+    params["num_fault_types"] = num_fault_types
+    logging.info(f"Fault types: {num_fault_types} classes")
 
     hash_id = dump_params(params)
     params["hash_id"] = hash_id

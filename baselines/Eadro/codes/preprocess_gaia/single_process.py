@@ -1,5 +1,6 @@
 import numpy as np
 from tick.hawkes import HawkesADM4
+from tqdm import tqdm
 
 def logHaw(chunk_logs, end_time, event_num, decay=3, ini_intensity=0.2):
     model = HawkesADM4(decay)
@@ -31,7 +32,7 @@ def deal_logs(intervals, info, idx, name):
     res = np.zeros((len(intervals), info.node_num, event_num))
 
     no_log_chunk = 0 
-    for chunk_idx, (s, e) in enumerate(intervals):
+    for chunk_idx, (s, e) in tqdm(enumerate(intervals), total=len(intervals), desc="Processing log chunks"):
         if (chunk_idx+1) % 100 == 0: 
             print("Computing Hawkes of chunk {}/{}".format(chunk_idx+1, len(intervals)))
         try:
@@ -64,51 +65,57 @@ def deal_metrics(intervals, info, idx, name, chunk_lenth):
     metric_num = len(info.metric_names)
     metrics = np.zeros((len(intervals), info.node_num, chunk_lenth, metric_num))
     
-    for nid, service in enumerate(info.service_names):
+    for nid, service in tqdm(enumerate(info.service_names), total=len(info.service_names), desc="Processing metric services"):
         df = pd.read_csv(os.path.join(output_path, "parsed_data", name, "metrics"+idx, service+'.csv'))
+        # 先对整个数据集进行归一化
         df[info.metric_names] = df[info.metric_names].apply(z_zero_scaler)
-        df.set_index(["timestamp"], inplace=True)
+        
         for chunk_idx, (s,e) in enumerate(intervals):
-            values = df.loc[s:e, :].to_numpy()
-            assert values.shape == (chunk_lenth, metric_num), "{} shape in {}--{}".format(values.shape,s,e)
-            metrics[chunk_idx, nid, :, :] = values
+            # 找到 >= s 的第一个timestamp，然后往后取chunk_lenth个数据点
+            mask = df['timestamp'] / 1000 >= s
+            filtered_df = df[mask].head(chunk_lenth)
+            
+            if len(filtered_df) >= chunk_lenth:
+                # 提取归一化后的metric值
+                values = filtered_df[info.metric_names].to_numpy()
+                metrics[chunk_idx, nid, :, :] = values
+            else:
+                print(f"Warning: {service} chunk {chunk_idx} has {len(filtered_df)} rows, expected {chunk_lenth}")
+                continue
     
     with open(os.path.join(output_path, "chunks", name, idx, "metrics.pkl"), "wb") as fw:
         pickle.dump(metrics, fw)
     return metrics
 
 def deal_traces(intervals, info, idx, name, chunk_lenth):
-    """
-    Input:
-        intervals=[(s,e)], the chunks covers the period of [s, e].
-    Return:
-        a dict containing info for each interval:
-        -- cell of invok list : a dict contains invocations inside the given time period == as invocation-based edge-level features
-            {s-t:[lat1, lat2, ...]}
-        -- cell of latency list: a dict contains a np.array [chunk_lenth] denoting the average latency (per time slot) for each node 
-                                === as trace-based node-level features
-            {nid:np.array([lat_1, ..., lat_tau, ..., lat_chunk_lenth}])}
-    """
     print("*** Dealing with traces...")
     traces = read_json(os.path.join(output_path, "parsed_data", name, "traces"+idx+".json"))
-    invocations = [] # the number of invocations
+    invocations = []
+    slot_duration = 600 // chunk_lenth  # Gaia: 600s / 20slots = 30s per slot
     latency = np.zeros((len(intervals), info.node_num, chunk_lenth, 2))
 
-    for chunk_idx, (s, e) in enumerate(intervals):
+    for chunk_idx, (s, e) in tqdm(enumerate(intervals), total=len(intervals), desc="Processing trace chunks"):
         invok = {}
-        slots = [t for t in range(s, e+1)]
-        for i, ts in enumerate(slots):
-            if str(ts) in traces.keys(): # spans exist in the i-th time slot
-                spans = traces[str(ts)]
-                tmp_node_lat = [[] for _ in range(info.node_num)]
-                for k, lat_lst in spans.items():
-                    if k not in invok: invok[k] = 0
-                    invok[k] += len(lat_lst)
-                    t_node = int(k.split('-')[-1])
-                    tmp_node_lat[t_node].extend(lat_lst)
-                for t_node in range(info.node_num):
-                    if len(tmp_node_lat[t_node]) > 0:
-                        latency[chunk_idx][t_node][i][0] = np.mean(tmp_node_lat[t_node])
+        for slot in range(chunk_lenth):
+            slot_start = s + slot * slot_duration
+            slot_end = s + (slot + 1) * slot_duration
+            tmp_node_lat = [[] for _ in range(info.node_num)]
+            
+            for ts in range(slot_start, slot_end + 1):
+                if str(ts) in traces:
+                    spans = traces[str(ts)]
+                    for service, lat_lst in spans.items():
+                        if service not in info.service2nid:
+                            continue
+                        if service not in invok:
+                            invok[service] = 0
+                        invok[service] += len(lat_lst)
+                        node_id = info.service2nid[service]
+                        tmp_node_lat[node_id].extend(lat_lst)
+            
+            for node_id in range(info.node_num):
+                if len(tmp_node_lat[node_id]) > 0:
+                    latency[chunk_idx][node_id][slot][0] = np.mean(tmp_node_lat[node_id])
         invocations.append(invok)
     
     for i in range(info.node_num):
