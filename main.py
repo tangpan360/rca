@@ -52,6 +52,7 @@ def train_and_evaluate(config: Config, log_dir, exp_name):
 
 
 if __name__ == '__main__':
+
     import argparse
     parser = argparse.ArgumentParser(description='MultiModal Fault Diagnosis Framework')
     parser.add_argument('--dataset', default='gaia', choices=['gaia', 'sn', 'tt'],

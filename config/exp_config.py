@@ -38,6 +38,17 @@ class Config:
         # 模型权重选择配置
         self.use_best_model = True  # True: 使用验证集最优权重, False: 使用最后权重
 
+        # Task-Specific对比学习配置
+        self.use_contrastive = True          # 是否使用对比学习
+        self.temperature = 0.3               # 对比学习温度参数
+        self.contrastive_weight = 0.1        # 对比损失权重（仅在dynamic_weight=False时使用）
+                                              # 注意：当前配置dynamic_weight=True，使用AWL自动学习权重，此参数未被使用
+        
+        # 原型对比学习配置
+        self.initial_momentum = 0.5          # 初始动量（快速学习）
+        self.final_momentum = 0.9            # 最终动量（稳定收敛）
+        self.warmup_epochs = 3               # 动量warmup轮数
+
         # model config
         self.batch_size = 8
         self.epochs = 500
@@ -67,10 +78,13 @@ class Config:
             self.dataset_path = "./data/processed_data/gaia/dataset.pkl"
             self.nodes_path = "./data/processed_data/gaia/graph/nodes_static_no_influence.json"
             self.edges_path = "./data/processed_data/gaia/graph/edges_static_no_influence.json"
+            # 类别数量配置
+            self.n_type = 5          # 故障类型数量
+            self.n_instance = 10     # 服务数量（根因类别）
         elif self.dataset == 'sn':
             self.feat_drop = 0
             self.patience = 10
-            self.ft_num = 12  # SN有12个服务
+            self.ft_num = 3  # 故障类型数量（Fault Type Number）
             self.aggregator = 'mean'
             self.batch_size = 8
             # SN数据集维度配置
@@ -81,10 +95,13 @@ class Config:
             self.dataset_path = "./data/processed_data/sn/dataset.pkl"
             self.nodes_path = "./data/processed_data/sn/graph/nodes_predefined_static_no_influence.json"
             self.edges_path = "./data/processed_data/sn/graph/edges_predefined_static_no_influence.json"
+            # 类别数量配置
+            self.n_type = 3          # 故障类型数量
+            self.n_instance = 12     # 服务数量（根因类别）
         elif self.dataset == 'tt':
             self.feat_drop = 0
             self.patience = 10
-            self.ft_num = 27  # TT有27个服务
+            self.ft_num = 3  # 故障类型数量（Fault Type Number）
             self.aggregator = 'mean'
             self.batch_size = 8
             # TT数据集维度配置
@@ -95,6 +112,9 @@ class Config:
             self.dataset_path = "./data/processed_data/tt/dataset.pkl"
             self.nodes_path = "./data/processed_data/tt/graph/nodes_predefined_static_no_influence.json"
             self.edges_path = "./data/processed_data/tt/graph/edges_predefined_static_no_influence.json"
+            # 类别数量配置
+            self.n_type = 3          # 故障类型数量
+            self.n_instance = 27     # 服务数量（根因类别）
         else:
             raise NotImplementedError()
     

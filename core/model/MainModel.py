@@ -102,7 +102,7 @@ class MainModel(nn.Module):
         # 存储融合信息用于分析
         self._last_fusion_info = fusion_info
         
-        return fs, es, root_logit, type_logit
+        return fs, es, root_logit, type_logit, f, e
     
     def get_fusion_info(self):
         """

@@ -9,6 +9,7 @@ import dgl
 import numpy as np
 
 from core.loss.AutomaticWeightedLoss import AutomaticWeightedLoss
+from core.loss.PrototypicalContrastive import PrototypicalContrastiveLoss
 from core.model.MainModel import MainModel
 from utils.eval import *
 from utils.early_stop import EarlyStopping
@@ -36,6 +37,19 @@ class MultiModalDiag(object):
         self.result = Result()
         self.writer = SummaryWriter(log_dir)
         self.printParams()
+        
+        # 初始化对比学习损失
+        if config.use_contrastive:
+            self.contrast_loss = PrototypicalContrastiveLoss(
+                num_fti_classes=config.n_type,
+                num_rcl_classes=config.n_instance,
+                feature_dim=config.graph_out,
+                temperature=config.temperature,
+                initial_momentum=config.initial_momentum,
+                final_momentum=config.final_momentum,
+                warmup_epochs=config.warmup_epochs,
+                device=self.device
+            )
 
     def printParams(self):
         self.config.print_configs(self.logger)
@@ -44,7 +58,11 @@ class MultiModalDiag(object):
         model = MainModel(self.config).to(self.device)
         opt = torch.optim.Adam(model.parameters(), lr=self.config.lr, weight_decay=self.config.weight_decay)
         
-        awl = AutomaticWeightedLoss(2)  # 只有2个损失：l_rcl 和 l_fti
+        # 根据是否使用对比学习决定AWL的损失数量
+        if self.config.use_contrastive:
+            awl = AutomaticWeightedLoss(4)  # l_rcl, l_fti, l_rcl_contrast, l_fti_contrast
+        else:
+            awl = AutomaticWeightedLoss(2)  # l_rcl, l_fti
 
         self.logger.info(model)
         self.logger.info(f"Start training for {self.config.epochs} epochs.")
@@ -56,10 +74,15 @@ class MultiModalDiag(object):
         best_model_path = os.path.join(self.writer.log_dir, 'MMDiag_best.pt')
         
         for epoch in range(self.config.epochs):
+            # 设置当前epoch（用于原型对比学习的自适应动量）
+            if self.config.use_contrastive:
+                self.contrast_loss.set_epoch(epoch)
+            
             n_iter = 0
             start_time = time.time()
             model.train()
             epoch_loss, epoch_rcl_l, epoch_fti_l = 0, 0, 0
+            epoch_rcl_contrast, epoch_fti_contrast = 0, 0  # 对比损失记录
             rcl_results = {"HR@1": [], "HR@2": [], "HR@3": [], "HR@4": [],"HR@5": [], "MRR@3": []}
             fti_results = {'pre':[], 'rec':[], 'f1':[]}
 
@@ -87,16 +110,40 @@ class MultiModalDiag(object):
                 if self.config.use_partial_modalities:
                     active_modalities = self.config.training_modalities
                 
-                fs, es, root_logit, type_logit = model(batch_graphs, active_modalities=active_modalities)
+                fs, es, root_logit, type_logit, f_fused, e_fused = model(batch_graphs, active_modalities=active_modalities)
 
-                # 只保留主任务损失
+                # 主任务损失
                 l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
                 l_fti = F.cross_entropy(type_logit, type_labels)
                 
-                if self.config.dynamic_weight:
-                    total_loss = awl(l_rcl, l_fti)
+                # Task-Specific对比学习损失
+                if self.config.use_contrastive:
+                    # 扩展根因标签到节点级
+                    node_root_labels = self._expand_labels_to_nodes(instance_labels, batch_graphs)
+                    
+                    # 计算对比损失
+                    l_fti_contrast, l_rcl_contrast = self.contrast_loss(
+                        f_fused,           # FTI的图级特征 [B, 32]
+                        e_fused,           # RCL的节点级特征 [N, 32]
+                        type_labels,       # 故障类型标签 [B]
+                        node_root_labels   # 节点根因标签 [N]
+                    )
                 else:
-                    total_loss = l_rcl + l_fti
+                    l_fti_contrast = torch.tensor(0.0, device=self.device)
+                    l_rcl_contrast = torch.tensor(0.0, device=self.device)
+                
+                # 总损失
+                if self.config.dynamic_weight:
+                    if self.config.use_contrastive:
+                        total_loss = awl(l_rcl, l_fti, l_rcl_contrast, l_fti_contrast)
+                    else:
+                        total_loss = awl(l_rcl, l_fti)
+                else:
+                    if self.config.use_contrastive:
+                        total_loss = l_rcl + l_fti + \
+                                    self.config.contrastive_weight * (l_rcl_contrast + l_fti_contrast)
+                    else:
+                        total_loss = l_rcl + l_fti
 
                 total_loss.backward()
                 opt.step()
@@ -104,6 +151,8 @@ class MultiModalDiag(object):
                 epoch_loss += total_loss.detach().item()
                 epoch_rcl_l += l_rcl.detach().item()
                 epoch_fti_l += l_fti.detach().item()
+                epoch_rcl_contrast += l_rcl_contrast.detach().item()
+                epoch_fti_contrast += l_fti_contrast.detach().item()
 
                 rcl_res = RCA_eval(root_logit, batch_graphs.batch_num_nodes(), batch_graphs.ndata['root'])
                 fti_res = FTI_eval(type_logit, type_labels)
@@ -118,8 +167,18 @@ class MultiModalDiag(object):
             time_per_epoch = (end_time - start_time)
             train_times.append(time_per_epoch)
             
-            self.logger.info("Epoch {} done. Loss: {:.3f}, Time per epoch: {:.3f}[s]"
-                         .format(epoch, mean_epoch_loss, time_per_epoch))
+            if self.config.use_contrastive:
+                self.logger.info(
+                    "Epoch {} done. Loss: {:.3f}, RCL: {:.3f}, FTI: {:.3f}, "
+                    "RCL_Contrast: {:.3f}, FTI_Contrast: {:.3f}, Time: {:.3f}[s]"
+                    .format(epoch, mean_epoch_loss, 
+                           mean_rcl_loss, mean_fti_loss,
+                           epoch_rcl_contrast/n_iter, epoch_fti_contrast/n_iter,
+                           time_per_epoch)
+                )
+            else:
+                self.logger.info("Epoch {} done. Loss: {:.3f}, Time per epoch: {:.3f}[s]"
+                             .format(epoch, mean_epoch_loss, time_per_epoch))
 
             for k, v in rcl_results.items():
                 rcl_results[k] = np.mean(v)
@@ -194,7 +253,7 @@ class MultiModalDiag(object):
                 if self.config.use_partial_modalities:
                     active_modalities = self.config.testing_modalities
                 
-                fs, es, root_logit, type_logit = model(batch_graphs, active_modalities=active_modalities)
+                fs, es, root_logit, type_logit, _, _ = model(batch_graphs, active_modalities=active_modalities)
                 
                 # 只计算主任务损失
                 l_rcl = self.cal_rcl_loss(root_logit, batch_graphs)
@@ -260,7 +319,7 @@ class MultiModalDiag(object):
                 if self.config.use_partial_modalities:
                     active_modalities = self.config.testing_modalities
                 
-                _, _, root_logit, type_logit = model(graph, active_modalities=active_modalities)
+                _, _, root_logit, type_logit, _, _ = model(graph, active_modalities=active_modalities)
                 root_logits.append(root_logit.flatten())
                 type_logits.append(type_logit.flatten())
             end_time = time.time()
@@ -310,3 +369,41 @@ class MultiModalDiag(object):
         batched_graph = dgl.batch(graphs)
         batched_labels = torch.tensor(labels)
         return batched_graph, batched_labels
+    
+    def _expand_labels_to_nodes(self, instance_labels, batch_graphs):
+        """
+        将图级标签扩展到节点级（只对根因节点有效）
+        
+        Args:
+            instance_labels: [batch_size] - 每个图的根因标签（服务ID）
+            batch_graphs: DGL batch graph
+        
+        Returns:
+            node_labels: [num_nodes_total] - 每个节点的根因标签
+                         根因节点: instance_label (0~n_instance-1)
+                         非根因节点: -1 (会在损失计算中被忽略)
+        """
+        node_labels = []
+        start_idx = 0
+        
+        for i, num_nodes in enumerate(batch_graphs.batch_num_nodes()):
+            end_idx = start_idx + num_nodes
+            
+            # 获取当前图的节点根因标记 [num_nodes]
+            root_mask = batch_graphs.ndata['root'][start_idx:end_idx]
+            
+            # 为当前图的所有节点初始化标签为-1（忽略）
+            graph_labels = [-1] * num_nodes
+            
+            # 找到根因节点（root=1的位置）
+            root_indices = (root_mask == 1).nonzero(as_tuple=True)[0]
+            
+            if len(root_indices) > 0:
+                # 只有根因节点才用真实的instance_label
+                root_idx = root_indices[0].item()  # 通常每个图只有1个根因
+                graph_labels[root_idx] = instance_labels[i].item()
+            
+            node_labels.extend(graph_labels)
+            start_idx = end_idx
+        
+        return torch.tensor(node_labels, dtype=torch.long, device=self.device)
